@@ -1,2 +1,16 @@
-# 7-segment-img-reader
-저도 이미지 처리는 처음 해보는데요...
+# 7-segment-video-reader
+저도 영상 인식 처리는 처음 해보는데요...  
+[City Car Driving - 시뮬레이션 게임](https://store.steampowered.com/app/493490/City_Car_Driving/?l=koreana) 플레이 영상을 기반으로  
+주행 시간 동안의 자동차의 속력을 `.xlsx` 파일로 저장하는 프로그램입니다.
+
+
+## 어떻게 작동하냐면요...
+1. 동영상을 30 fps 단위로 캡쳐해요. (`ffmpeg` 이용)
+2. 7-segment 형태의 숫자를 인식할 부분만 크롭해요.
+3. `classify_sevenseg.py` 에서 숫자 부분을 인식해요.
+4. 인식한 숫자를 저장해 `.csv` 파일로 내보내요.
+5. `export_speed_to_excel.py`에서 내보낸 `.csv` 파일로 `.xlsx` 파일을 만들어요.
+
+## 지금도 잘 돌아가지만, 추가로 뭘 더 해야하냐면요...
+1. 코드 리팩토링
+2. 범용성 고민해보기 - 현재 특정 사이즈의 검정 배경 흰 글자만 인식 가능
