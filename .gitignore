@@ -1,0 +1,6 @@
+.venv
+frames30_pts
+_cls_overlay
+*.xlsx
+*.csv
+*.mp4

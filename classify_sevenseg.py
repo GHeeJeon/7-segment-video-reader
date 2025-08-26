@@ -62,7 +62,7 @@ DESKEW_MAX_LINE_GAP       = 3      # 선 세그먼트 연결 허용 간격(px)
 DESKEW_ROT_BIAS_DEG       = 0      # 추가 바이어스(고정 회전 모드에서는 0 권장)
 
 # ===== 멀티-디지트 분할 파라미터 =====
-MAX_DIGITS         = 3       # 최대 자릿수
+MAX_DIGITS         = 2       # 최대 자릿수
 MIN_DIGIT_W_FR     = 0.18    # 한 자리 최소 폭(핵심박스 폭 대비 비율)
 MAX_DIGIT_W_FR     = 0.50    # 한 자리 최대 폭(핵심박스 폭 대비 비율)
 MIN_GAP_FR         = 0.02    # 자리 사이 최소 간격(핵심박스 폭 대비)
@@ -536,14 +536,11 @@ def _apply_fixed_digit_size(dboxes, core):
     return fixed
 
 # ---------- 고정 위치 자릿수 박스 생성 함수 ----------
-def _fixed_triplet_boxes(bw, core):
+def _fixed_pair_from_triplet(bw, core):
     """
-    파란 핵심 박스를 3등분한 '고정 위치' 보라색 박스들을 만든다.
-    - ones: 오른쪽 끝 밀착
-    - hundreds: 왼쪽 끝 밀착
-    - tens: 정중앙
-    - tens/hundreds는 on-비율로 '존재' 판정 후 포함, ones는 항상 포함
-    반환: [ (x0,y0,x1,y1), ... ]  (좌->우 정렬)
+    핵심박스를 3등분하되, 맨 왼쪽(백의 자리)은 버리고
+    오른쪽 2칸(십/일의 자리)만 정확히 사용. 두 박스 폭은 동일(fw).
+    ones는 오른쪽 끝에 밀착, tens는 그 왼쪽에 gap=0으로 붙임.
     """
     cx0, cy0, cx1, cy1 = core
     Wc = cx1 - cx0 + 1
@@ -551,46 +548,31 @@ def _fixed_triplet_boxes(bw, core):
     if Wc <= 0 or Hc <= 0:
         return []
 
-    fw = max(1, Wc // 3)      # 폭 = 핵심박스의 1/3(정수)
-    fh = Hc                   # 높이 = 전체
-
-    # 1) 일의 자리: 오른쪽 벽에 밀착
-    ones_x1 = cx1
-    ones_x0 = max(cx0, ones_x1 - fw + 1)
-
-    # 2) 백의 자리: 왼쪽 벽에 밀착
-    hund_x0 = cx0
-    hund_x1 = min(cx1, hund_x0 + fw - 1)
-
-    # 3) 십의 자리: '정중앙' 대신 '일의 자리 왼쪽에 바로 밀착' (겹침 방지만 적용)
-    tens_x1 = ones_x0 - 1          # ← ones와 바로 붙도록 우측 경계 고정
-    tens_x0 = tens_x1 - fw + 1     # 고정 폭 유지
-    tens_x0 = max(hund_x1 + 1, tens_x0)  # hundreds와 겹치지 않게 좌측 클램프
-
-    # y 범위(전체 높이)
+    fw = max(1, Wc // 3)          # 1/3 폭 (정수)
+    used_w = 2 * fw                # 사용할 총 폭 = 2/3
+    start_x0 = cx1 - used_w + 1    # 오른쪽 밀착 시작점 (남는 나머지는 왼쪽 1/3로)
     y0, y1 = cy0, cy1
 
-    # 존재 판정(일의 자리는 무조건 포함)
-    out = []
+    # tens: 오른쪽 2/3의 첫 칸
+    tens_x0 = start_x0
+    tens_x1 = tens_x0 + fw - 1
+
+    # ones: 오른쪽 2/3의 마지막 칸 (오른쪽 끝 밀착)
+    ones_x0 = tens_x1 + 1
+    ones_x1 = ones_x0 + fw - 1     # == cx1 (정수 나눗셈일 때 딱 맞음)
+
     def on_frac(x0, y0, x1, y1):
         roi = bw[y0:y1+1, x0:x1+1]
         return 0.0 if roi.size == 0 else (roi > 0).mean()
 
-    # hundreds
-    if hund_x1 >= hund_x0:
-        if on_frac(hund_x0, y0, hund_x1, y1) >= DIGIT_PRESENCE_ON_FR:
-            out.append((hund_x0, y0, hund_x1, y1))
+    out = []
+    # tens: 존재율로 포함
+    if on_frac(tens_x0, y0, tens_x1, y1) >= DIGIT_PRESENCE_ON_FR:
+        out.append((tens_x0, y0, tens_x1, y1))
+    # ones: 항상 포함
+    out.append((ones_x0, y0, ones_x1, y1))
 
-    # tens
-    if tens_x1 >= tens_x0:
-        if on_frac(tens_x0, y0, tens_x1, y1) >= DIGIT_PRESENCE_ON_FR:
-            out.append((tens_x0, y0, tens_x1, y1))
-
-    # ones (항상 포함)
-    if ones_x1 >= ones_x0:
-        out.append((ones_x0, y0, ones_x1, y1))
-
-    # 좌->우 정렬 보장
+    # 좌->우 정렬
     out.sort(key=lambda b: b[0])
     return out
 
@@ -630,7 +612,7 @@ def main():
 
                 # 3) 자릿수 박스 결정
                 if DIGIT_BOX_USE_FIXED:
-                    dboxes = _fixed_triplet_boxes(bw, core)
+                    dboxes = _fixed_pair_from_triplet(bw, core)
                 else:
                     dboxes = _split_digits_by_valleys(bw, core)
 
