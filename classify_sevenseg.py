@@ -578,11 +578,11 @@ def _fixed_pair_from_triplet(bw, core):
 
 # ---------- 메인 ----------
 def main():
-    exts = ("*.png","*.jpg","*.jpeg","*.PNG","*.JPG","*.JPEG")
+    patterns = ("*.[Pp][Nn][Gg]", "*.[Jj][Pp][Gg]", "*.[Jj][Pp][Ee][Gg]")
     paths = []
-    for e in exts:
-        paths.extend(glob.glob(os.path.join(IN_DIR, e)))
-    paths.sort()
+    for pat in patterns:
+        paths.extend(glob.glob(os.path.join(IN_DIR, pat)))
+    paths = sorted(dict.fromkeys(paths))  # 안전하게 중복 제거
 
     total = len(paths)
 
@@ -661,5 +661,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
