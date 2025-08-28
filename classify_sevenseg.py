@@ -246,6 +246,10 @@ def segment_states(bw, box, place: str = "ones"):
     states = []
     for key in SEG_ORDER:
         s = SEGS[key]
+
+        if key == "A" and place == "tens":
+            s = Seg(s.x0 + 0.03, s.y0, s.x1 + 0.15, s.y1)
+
         x0 = cx0 + int(s.x0 * Wc); x1 = cx0 + int(s.x1 * Wc)
         y0 = cy0 + int(s.y0 * Hc); y1 = cy0 + int(s.y1 * Hc)
         x0 = max(0, min(bw.shape[1]-1, x0)); x1 = max(0, min(bw.shape[1]-1, x1))
@@ -281,7 +285,7 @@ def segment_states(bw, box, place: str = "ones"):
 # ---------- 매칭 ----------
 def match_digit(states):
     if sum(states) <= 1:
-        return 0, 0.0, 7  # 세그먼트 너무 적게 켜졌을 때도 0으로 처리
+        return -1, 0.0, 7
 
     best_d, best_dist = None, 99
     for d, pat in DIGIT_PATTERNS.items():
@@ -291,12 +295,10 @@ def match_digit(states):
             best_d = d
 
     conf = 1.0 - (best_dist / 7.0)
-
-    if conf < 0.75:  # 신뢰도가 너무 낮아도 0으로 처리
-        return 0, conf, best_dist
-
-    return best_d, conf, best_dist
-
+    if best_dist == 0:
+        return best_d, 1.0, 0
+    else:
+        return -1, conf, best_dist
 
 # ---------- 시각화 ----------
 def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
@@ -351,31 +353,41 @@ def main():
         # 3) 두 자리 고정 박스(우측 2/3)
         pair_boxes = fixed_two_digit_boxes(core)
 
-        # 4) 자리별 분류 (A 세그먼트 자리별 가산 적용)
+        # 4) 자리별 분류
         per_digit = []
         preds, confs, dists, states_dump = [], [], [], []
+        digit_states = {}
+        
         for place, dbox in pair_boxes:
             states = segment_states(bw, dbox, place=place)
             pred, conf, dist = match_digit(states)
+
+            digit_states[place] = states  # ← 세그먼트 원형 저장
+
             per_digit.append((pred, conf, dist, states))
             preds.append(str(pred))
             confs.append(f"{conf:.3f}")
             dists.append(str(dist))
             states_dump.append(f"{place}:{''.join(map(str,states))}")
 
-        # 5) tens → ones 순으로 문자열 결합
-        ordered = []
-        for place, _ in pair_boxes:
-            if place == "tens":
-                ordered.append(preds[0])
-        # pair_boxes[0]가 tens, [1]가 ones이므로 그대로 결합
-        pred_number = int("".join(preds)) if preds else -1
+        # 5) pred_number 조립 (특수 조건 처리 포함)
+        # 조건: tens 세그먼트가 모두 0이고, ones 는 유효하면 → ones만 사용
+        tens_states = digit_states.get("tens", (0,)*7)
+        ones_pred = int(preds[1]) if preds[1] != "-1" else -1
+        tens_pred = int(preds[0]) if preds[0] != "-1" else -1
+
+        if all(s == 0 for s in tens_states) and ones_pred >= 0:
+            pred_number = ones_pred
+        elif ones_pred == -1 or tens_pred == -1:
+            pred_number = -1
+        else:
+            pred_number = tens_pred * 10 + ones_pred
 
         # 6) 시각화 저장
         vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
         cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
 
-        # 7) CSV
+        # 7) CSV 저장
         rows.append(
             f"{os.path.basename(p)},{len(preds)},{pred_number},"
             f"{' '.join(preds)},{' '.join(confs)},{' '.join(dists)},"
