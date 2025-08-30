@@ -82,8 +82,8 @@ TWO_DIGIT_USE_FIXED_RIGHT_2_3 = True
 Seg = namedtuple("Seg", "x0 y0 x1 y1")
 SEGS = {
     "A": Seg(0.25, 0.19, 0.40, 0.23),
-    "B": Seg(0.74, 0.27, 0.90, 0.44),
-    "C": Seg(0.74, 0.63, 0.90, 0.77),
+    "B": Seg(0.74, 0.27, 0.93, 0.44),
+    "C": Seg(0.74, 0.63, 0.93, 0.77),
     "E": Seg(0.12, 0.63, 0.28, 0.77),
     "F": Seg(0.12, 0.27, 0.28, 0.44),
     "D": Seg(0.35, 0.86, 0.65, 0.90),
@@ -247,7 +247,7 @@ def segment_states(bw, box, place: str = "ones"):
     for key in SEG_ORDER:
         s = SEGS[key]
 
-        if key == "A" and place == "tens":
+        if key == "A" and (place == "tens" or place == "ones"):
             s = Seg(s.x0 + 0.03, s.y0, s.x1 + 0.15, s.y1)
 
         x0 = cx0 + int(s.x0 * Wc); x1 = cx0 + int(s.x1 * Wc)
@@ -327,11 +327,11 @@ def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
 
 # ---------- 메인 ----------
 def main():
-    exts = ("*.png","*.jpg","*.jpeg","*.PNG","*.JPG","*.JPEG")
+    patterns = ("*.[Pp][Nn][Gg]", "*.[Jj][Pp][Gg]", "*.[Jj][Pp][Ee][Gg]")
     paths = []
-    for e in exts:
-        paths.extend(glob.glob(os.path.join(IN_DIR, e)))
-    paths.sort()
+    for pat in patterns:
+        paths.extend(glob.glob(os.path.join(IN_DIR, pat)))
+    paths = sorted(dict.fromkeys(paths))  # 안전하게 중복 제거
 
     rows = ["filename,num_digits,pred_number,preds,confs,dists,states_per_digit\n"]
     ok = 0
