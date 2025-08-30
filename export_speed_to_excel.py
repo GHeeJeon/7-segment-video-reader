@@ -1,30 +1,44 @@
 """
-7세그 속도 + 시간 엑셀 내보내기 (필터 적용 + 종료 전 0구간 제거 + 메트릭 상단 1회 표기)
+7세그 속도 + 시간 엑셀 내보내기 (필터 적용 + 종료 전 0구간 제거 + 메트릭 상단 1회 표기 + check 컬럼 추가)
 
 - classify_sevenseg.py가 생성한 분류 CSV를 읽어 시간 열을 포함한 엑셀 파일을 작성합니다.
 - 엑셀에는 다음 구간만 저장합니다.
-  * 시작: 속도가 0 → ≥1 로 처음 전이되는 프레임(t=0)
-  * 끝: 시작 이후 첫 검은 화면(블랙 프레임) 바로 직전의 마지막 "비0 속도" 프레임
-    - 즉, 블랙 프레임 직전의 연속된 0 속도 구간은 제외(완전 정차 후 종료 구간 제거)
-  * 블랙 프레임이 없을 경우: 파일 끝까지 포함(이때는 말단 0 구간을 강제 제거하지 않음)
-
-시간 규칙:
-- FPS(기본 30) 기준으로 프레임당 1/FPS씩 증가
-- 저장된 마지막 프레임까지 시간값을 기록
-
-상단 메트릭(한 번만 표시):
-- 총 주행 시간, 평균속력, 총 과속 시간, 총 과속 거리(전체), 총 과속 거리(넘은 거리만),
-  속도 표준 편차, 타겟 속도 표준 편차, 총 과속 횟수 (엑셀)
+  * 시작: 속도가 0 → ≥1 로 처음 전이되는 프레임(t=0), 단 그 직전 0 프레임도 포함
+  * 끝: 시작 이후 첫 블랙(-1) 프레임 바로 직전의 마지막 "비0 속도" 프레임
+    - 블랙 직전 연속된 0 구간은 제외 (마지막 0 한 프레임은 유지)
+  * 블랙 프레임이 없을 경우: 파일 끝까지 포함 (말단 0 구간 강제 제거 X)
+- check 컬럼: 단발 튐(앞뒤가 같은데 가운데만 다른 경우)을 Y로 마킹
 """
-from __future__ import annotations
+
 import os
 import argparse
-from typing import Optional
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
-def export_speed_xlsx_csv_only(
+
+def is_spike_among_plateaus(speeds: list[int], i: int) -> bool:
+    """단발 튐 검출: 앞뒤가 같고 현재만 다른 경우"""
+    if i <= 0 or i >= len(speeds) - 1:
+        return False
+    before, now, after = speeds[i - 1], speeds[i], speeds[i + 1]
+
+    # (1) 가운데만 튄 경우
+    if now != before and now != after and before == after:
+        return True
+
+    # (2) 정상 추세 (가속/감속)
+    if (before < now < after) or (before > now > after):
+        return False
+
+    # (3) 앞뒤 평균에서 크게 튄 경우 (옵션)
+    diff = abs(now - (before + after) / 2)
+    if diff >= 10:
+        return True
+
+    return False
+
+
+def export_speed_xlsx(
     cls_csv_path: str = "_cls_result.csv",
     out_xlsx_path: str = "_speed_time.xlsx",
     fps: int = 30,
@@ -85,9 +99,13 @@ def export_speed_xlsx_csv_only(
 
     out = df.iloc[start_save:end_save + 1].reset_index(drop=True)
 
-    # time_s 첫 행 None 보정(가독성): 앞채움 후 0.0으로 대체
-    out["time_s"] = pd.to_numeric(out["time_s"], errors="coerce")
-    out["time_s"] = out["time_s"].ffill().fillna(0.0)
+    # time_s 보정
+    out["time_s"] = pd.to_numeric(out["time_s"], errors="coerce").ffill().fillna(0.0)
+
+    # check 컬럼 추가
+    speeds_list = out["speed"].tolist()
+    check_col = ["Y" if is_spike_among_plateaus(speeds_list, i) else "N" for i in range(len(speeds_list))]
+    out["check"] = check_col
 
     # ---------- 통계 메트릭 ----------
     spd = out["speed"].astype(float)     # km/h
@@ -168,9 +186,8 @@ def export_speed_xlsx_csv_only(
         {"key": "exported_rows", "value": len(out)},
     ])
 
-    # 엑셀 저장 + 헤더 옆 주석(요청 문구) 쓰기
+    # 엑셀 저장
     with pd.ExcelWriter(out_xlsx_path, engine="xlsxwriter") as writer:
-        # 시트에 표 쓰기
         metrics_df.to_excel(writer, index=False, sheet_name="speed_time", startrow=0)
         out_startrow = metrics_df.shape[0] + 2
         out.to_excel(writer, index=False, sheet_name="speed_time", startrow=out_startrow)
@@ -217,7 +234,7 @@ def main():
 
     args = ap.parse_args()
 
-    out = export_speed_xlsx_csv_only(
+    out = export_speed_xlsx(
         cls_csv_path=args.cls_csv,
         out_xlsx_path=args.out_xlsx,
         fps=args.fps,
