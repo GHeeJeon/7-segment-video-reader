@@ -3,10 +3,14 @@
 [City Car Driving - 시뮬레이션 게임](https://store.steampowered.com/app/493490/City_Car_Driving/?l=koreana) 플레이 영상을 기반으로  
 주행 시간 동안의 자동차의 속력을 `.xlsx` 파일로 저장하는 프로그램입니다.
 
+## 어떤 게 필요하냐면요...
+1. ffmpeg (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
+2. 파이썬 가상환경 세팅(`python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`)
+3. frames30_pts 라는 이름의 폴더 (크롭한 계기판을 이 폴더에 저장)
 
 ## 어떻게 작동하냐면요...
 1. 동영상을 30 fps 단위로 캡쳐해요. (`ffmpeg` 이용)
-2. 7-segment 형태의 숫자를 인식할 부분만 크롭해요.
+2. 7-segment 형태의 숫자를 인식할 부분만 크롭해요. (City Car Driving 플레이 화면 기준이라 크롭 위치는 고정값)
 #### 1 ~ 2 번 Windows PowreShell
 ```shell
 ffmpeg -y -i ".\video.mp4" -vf "crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08,fps=30" -frame_pts 1 ".\frames30_pts\img_%010d.png"
