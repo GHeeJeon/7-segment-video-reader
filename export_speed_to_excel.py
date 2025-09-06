@@ -103,6 +103,8 @@ def export_speed_xlsx(
 
     # time_s 보정
     out["time_s"] = pd.to_numeric(out["time_s"], errors="coerce").ffill().fillna(0.0)
+    
+    out["is_black"] = out["speed"].eq(-1)
 
     # check 컬럼 추가
     speeds_list = out["speed"].tolist()
@@ -172,9 +174,9 @@ def export_speed_xlsx(
         "속도 편차(요청식=MAD) [km/h]": std_req_mad,
         "속도 표준편차(정의) [km/h]": std_pop,
         "Target deviation(요청식=MAD) [km/h]": target_deviation_mad,
-        "Target RMSE(target=OVER_SPEED_KMH) [km/h]": target_rmse,
-        "과속 프레임 수(>OVER_SPEED_KMH)": over_frame_cnt,
-        "과속 횟수(구간, >OVER_SPEED_KMH)": over_segments,
+        "Target RMSE(target=60) [km/h]": target_rmse,
+        "과속 프레임 수(>60)": over_frame_cnt,
+        "과속 횟수(구간, >60)": over_segments,
     }])
 
     # 메타 시트
@@ -205,20 +207,25 @@ def export_speed_xlsx(
         except KeyError:
             time_s_col = len(out.columns)  # 안전장치: 못 찾으면 맨 끝 기준
 
-        notes = [
-            f"time_s 옆에 total time : {total_time:.2f} s",
-            f"total time 옆에 average speed : {avg_speed_requested:.3f} km/h (속도합/총시간)",
-            f"2번 옆에 Over speed time : {over_speed_time:.2f} s (과속 프레임 {over_frame_cnt}개 / fps {fps})",
-            f"3번 옆에 total over speed distance : {total_over_speed_distance:.3f} km (∑ v/(fps·3600), v>)",
-            f"4번 옆에 part over speed distance : {part_over_speed_distance:.3f} km (∑ (OVER_SPEED_KMH)/(fps·3600), v>OVER_SPEED_KMH)",
-            f"5번 옆에 standard deviation : {std_req_mad:.3f} km/h (요청식=|v−평균|의 평균; 표준정의={std_pop:.3f})",
-            f"6번 옆에 Target speed deviation : {target_deviation_mad:.3f} km/h (요청식=|OVER_SPEED_KMH−v|의 평균; RMSE={target_rmse:.3f})",
-            f"7번 옆에 over speed count : {over_segments} 회 (v>OVER_SPEED_KMH 구간 시작 횟수)",
-        ]
+        # notes = [
+        #     f"total time : {total_time:.2f} s",
+        #     f"average speed : {avg_speed_requested:.3f} km/h (속도합/총시간)",
+        #     f"Over speed time : {over_speed_time:.2f} s (과속 프레임 {over_frame_cnt}개 / fps {fps})",
+        #     f"total over speed distance : {total_over_speed_distance:.3f} km (∑ v/(fps·3600), v>)",
+        #     f"part over speed distance : {part_over_speed_distance:.3f} km (∑ (OVER_SPEED_KMH)/(fps·3600), v>OVER_SPEED_KMH)",
+        #     f"standard deviation : {std_req_mad:.3f} km/h (요청식=|v−평균|의 평균; 표준정의={std_pop:.3f})",
+        #     f"Target speed deviation : {target_deviation_mad:.3f} km/h (요청식=|OVER_SPEED_KMH−v|의 평균; RMSE={target_rmse:.3f})",
+        #     f"over speed count : {over_segments} 회 (v>OVER_SPEED_KMH 구간 시작 횟수)",
+        # ]
 
-        base_col = time_s_col + 1
-        for k, text in enumerate(notes):
-            ws.write(header_row, base_col + k, text)
+        # notes = [
+        # "is_black: True → 블랙 프레임, False → 정상 프레임",
+        # "check: Y → 단발 튐(앞뒤 같고 가운데만 다른 경우), N → 정상",
+        # ]
+
+        # base_col = time_s_col + 1
+        # for k, text in enumerate(notes):
+        #     ws.write(header_row, base_col + k, text)
 
     if debug:
         print(f"[DEBUG] Exported rows: {len(out)}")
