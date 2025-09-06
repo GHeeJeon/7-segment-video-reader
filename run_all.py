@@ -43,18 +43,35 @@ def which_or_raise(exe: str) -> str:
     return path
 
 
-def find_videos(root: Path, exts: Tuple[str, ...]) -> List[Path]:
+def find_videos(source_dir: Path, exts: Tuple[str, ...]) -> List[Path]:
+    """
+    구조:
+      source/
+        사람A/
+          1/ 2/ (3/ 4/ 있을 수도)
+            *.mp4, *.mov ...
+        사람B/
+          1/ 2/
+            *.mp4 ...
+    """
     videos: List[Path] = []
-    # 1,2,3,4 폴더만 우선 순회 (없으면 모든 하위폴더 탐색)
-    candidates = [root / d for d in ["1", "2", "3", "4"] if (root / d).is_dir()]
-    if not candidates:
-        # fallback: root 하위 1-depth 디렉토리 전체
-        candidates = [p for p in root.iterdir() if p.is_dir()]
-    for folder in candidates:
-        for p in folder.iterdir():
-            if p.is_file() and p.suffix.lower() in exts:
-                videos.append(p)
-    return sorted(videos)
+    if not source_dir.is_dir():
+        raise RuntimeError(f"source 폴더를 찾을 수 없습니다: {source_dir}")
+
+    for person_dir in sorted([p for p in source_dir.iterdir() if p.is_dir()]):
+        # 우선 1,2,3,4만 대상으로
+        numbered = [person_dir / d for d in ["1", "2", "3", "4"] if (person_dir / d).is_dir()]
+        # 없으면 사람 폴더 바로 하위의 모든 디렉터리를 대상으로(유연성)
+        if not numbered:
+            numbered = [p for p in person_dir.iterdir() if p.is_dir()]
+
+        for stage_dir in sorted(numbered):
+            for p in sorted(stage_dir.iterdir()):
+                if p.is_file() and p.suffix.lower() in exts:
+                    videos.append(p)
+
+    return videos
+
 
 
 def run_ffmpeg(video: Path, frames_dir: Path, crop: str, fps: int) -> None:
@@ -103,7 +120,6 @@ def classify_frames(frames_dir: Path, work_dir: Path) -> Path:
         raise RuntimeError(f"분류 CSV가 생성되지 않았습니다: {out_csv}")
     return out_csv
 
-
 def export_excel(cls_csv: Path, frames_dir: Path, fps: int) -> Path:
     """`export_speed_to_excel.py`의 함수를 임포트해서 직접 호출."""
     import importlib
@@ -111,14 +127,13 @@ def export_excel(cls_csv: Path, frames_dir: Path, fps: int) -> Path:
     out_xlsx = cls_csv.parent / "_speed_time.xlsx"
     ex.export_speed_xlsx(
         cls_csv_path=str(cls_csv),
-        images_dir=str(frames_dir),
-        out_xlsx=str(out_xlsx),
+        out_xlsx_path=str(out_xlsx),
         fps=fps,
+        debug=False,
     )
     if not out_xlsx.exists():
         raise RuntimeError(f"엑셀 파일이 생성되지 않았습니다: {out_xlsx}")
     return out_xlsx
-
 
 # --------------------------- 메인 파이프라인 ---------------------------
 
@@ -143,25 +158,30 @@ def process_video(video: Path, crop: str, fps: int) -> Path:
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="원클릭: ffmpeg 추출 → 분류 → 엑셀 내보내기")
-    ap.add_argument("--root", default=".", help="1,2,3,4 폴더를 포함한 루트 경로")
-    ap.add_argument("--fps", type=int, default=DEFAULT_FPS, help="ffmpeg 및 시간 계산 FPS")
+    ap.add_argument("--root", default=".", help="스크립트 기준 루트 경로")
+    ap.add_argument("--source", default="source", help="사람 폴더들을 담은 상위 폴더(경로/이름)")
+    ap.add_argument("--fps", type=int, default=DEFAULT_FPS, help="프레임 추출 FPS (기본 30)")
     ap.add_argument("--crop", default=DEFAULT_CROP, help="ffmpeg crop 필터 문자열")
     ap.add_argument("--video-ext", default=",".join(DEFAULT_VID_EXTS), help="처리할 동영상 확장자 콤마구분(.mp4,.mov)")
     ap.add_argument("--skip-existing", action="store_true", help="이미 _speed_time.xlsx가 있으면 해당 영상은 건너뜀")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
-    exts = tuple(s.strip().lower() if s.strip().startswith(".") else "." + s.strip().lower() for s in args.video_ext.split(",") if s.strip())
+    source_dir = (root / args.source).resolve()
+    exts = tuple(
+        s.strip().lower() if s.strip().startswith(".") else "." + s.strip().lower()
+        for s in args.video_ext.split(",") if s.strip()
+        )
 
     # ffmpeg 확인
     which_or_raise("ffmpeg")
 
-    videos = find_videos(root, exts)
+    videos = find_videos(source_dir, exts)
     if not videos:
-        print(f"동영상을 찾지 못했습니다. 루트: {root}, 확장자: {exts}")
+        print(f"동영상을 찾지 못했습니다. source_dir: {source_dir}, 확장자: {exts}")
         sys.exit(1)
 
-    print(f"총 {len(videos)}개 동영상 처리 시작… 루트={root}")
+    print(f"총 {len(videos)}개 동영상 처리 시작… source_dir={source_dir}")
 
     bar = tqdm(videos, desc="전체 파이프라인", unit="vid", dynamic_ncols=True) if tqdm else videos
     results = []
