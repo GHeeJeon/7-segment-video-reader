@@ -5,7 +5,9 @@
 
 ## 어떤 게 필요하냐면요...
 1. ffmpeg (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
-2. 파이썬 가상환경 세팅(`python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`)
+2. 파이썬 가상환경 세팅
+맥: `python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`  
+윈도우: `python -m venv .venv` `.venv\Scripts\Activate.ps1` `pip install -r requirements.txt`
 3. frames30_pts 라는 이름의 폴더 (크롭한 계기판을 이 폴더에 저장)
 
 ## 어떻게 작동하냐면요...
