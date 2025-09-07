@@ -4,3 +4,5 @@ _cls_overlay
 *.xlsx
 *.csv
 *.mp4
+!test/frames30_pts
+!test/_cls_overlay

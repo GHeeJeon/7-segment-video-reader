@@ -151,14 +151,8 @@ def export_speed_xlsx(
     # 편차들
     mean_spd = float(avg_speed_mean) if not np.isnan(avg_speed_mean) else float("nan")
 
-    # 요청식 "standard deviation": √( (v-평균)^2 )의 평균 = |v-평균|의 평균 (MAD)
-    std_req_mad = float(np.mean(np.sqrt((spd - mean_spd) ** 2))) if not spd.empty else float("nan")
-
     # 표준정의 표준편차(모집단)
     std_pop = float(np.sqrt(((spd - mean_spd) ** 2).mean())) if not spd.empty else float("nan")
-
-    # Target speed deviation(요청식): |OVER_SPEED_KMH - v|의 평균
-    target_deviation_mad = float(np.mean(np.sqrt((OVER_SPEED_KMH - spd) ** 2))) if not spd.empty else float("nan")
 
     # (참고) 타깃 RMSE
     target_rmse = float(np.sqrt(((OVER_SPEED_KMH - spd) ** 2).mean())) if not spd.empty else float("nan")
@@ -171,9 +165,7 @@ def export_speed_xlsx(
         "총 과속 시간(s)": over_speed_time,
         "총 과속 거리(전체)(km)": total_over_speed_distance,
         "총 과속 거리(초과분만)(km)": part_over_speed_distance,
-        "속도 편차(요청식=MAD) [km/h]": std_req_mad,
         "속도 표준편차(정의) [km/h]": std_pop,
-        "Target deviation(요청식=MAD) [km/h]": target_deviation_mad,
         "Target RMSE(target=60) [km/h]": target_rmse,
         "과속 프레임 수(>60)": over_frame_cnt,
         "과속 횟수(구간, >60)": over_segments,
@@ -213,8 +205,6 @@ def export_speed_xlsx(
         #     f"Over speed time : {over_speed_time:.2f} s (과속 프레임 {over_frame_cnt}개 / fps {fps})",
         #     f"total over speed distance : {total_over_speed_distance:.3f} km (∑ v/(fps·3600), v>)",
         #     f"part over speed distance : {part_over_speed_distance:.3f} km (∑ (OVER_SPEED_KMH)/(fps·3600), v>OVER_SPEED_KMH)",
-        #     f"standard deviation : {std_req_mad:.3f} km/h (요청식=|v−평균|의 평균; 표준정의={std_pop:.3f})",
-        #     f"Target speed deviation : {target_deviation_mad:.3f} km/h (요청식=|OVER_SPEED_KMH−v|의 평균; RMSE={target_rmse:.3f})",
         #     f"over speed count : {over_segments} 회 (v>OVER_SPEED_KMH 구간 시작 횟수)",
         # ]
 
