@@ -118,9 +118,6 @@ def export_speed_xlsx(
     # 총 주행 시간: 유효구간 길이 = max(time) - min(time)
     total_time = float(t.max() - t.min()) if t.notna().any() else 0.0
 
-    # 평균속력 (요청식): ∑속도 / 총 주행 시간
-    avg_speed_requested = float(spd.sum() / total_time) if total_time > 0 else float("nan")
-
     # 참고: 등간격 샘플 평균(권장)
     avg_speed_mean = float(spd.mean()) if not spd.empty else float("nan")
 
@@ -157,10 +154,15 @@ def export_speed_xlsx(
     # (참고) 타깃 RMSE
     target_rmse = float(np.sqrt(((OVER_SPEED_KMH - spd) ** 2).mean())) if not spd.empty else float("nan")
 
+    # 🔹 50~60km/h 주행 시간 및 비율 추가
+    mask_50_60 = (spd >= 50) & (spd <= 60)
+    time_50_60 = float(mask_50_60.sum() / float(fps))  # 초 단위
+    ratio_50_60 = float((time_50_60 / total_time * 100)) if total_time > 0 else float("nan")
+
+
     # 메트릭 표 (가독성을 위해 단위 병기)
     metrics_df = pd.DataFrame([{
         "총 주행 시간(s)": total_time,
-        "평균속력(요청식: ∑v / T) [km/h]": avg_speed_requested,
         "평균속력(권장: mean) [km/h]": avg_speed_mean,
         "총 과속 시간(s)": over_speed_time,
         "총 과속 거리(전체)(km)": total_over_speed_distance,
@@ -169,6 +171,8 @@ def export_speed_xlsx(
         "Target RMSE(target=60) [km/h]": target_rmse,
         "과속 프레임 수(>60)": over_frame_cnt,
         "과속 횟수(구간, >60)": over_segments,
+        "50~60km/h 주행 시간(s)": time_50_60,
+        "50~60km/h 비율(%)": ratio_50_60,
     }])
 
     # 메타 시트
@@ -198,24 +202,6 @@ def export_speed_xlsx(
             time_s_col = out.columns.get_loc("time_s")
         except KeyError:
             time_s_col = len(out.columns)  # 안전장치: 못 찾으면 맨 끝 기준
-
-        # notes = [
-        #     f"total time : {total_time:.2f} s",
-        #     f"average speed : {avg_speed_requested:.3f} km/h (속도합/총시간)",
-        #     f"Over speed time : {over_speed_time:.2f} s (과속 프레임 {over_frame_cnt}개 / fps {fps})",
-        #     f"total over speed distance : {total_over_speed_distance:.3f} km (∑ v/(fps·3600), v>)",
-        #     f"part over speed distance : {part_over_speed_distance:.3f} km (∑ (OVER_SPEED_KMH)/(fps·3600), v>OVER_SPEED_KMH)",
-        #     f"over speed count : {over_segments} 회 (v>OVER_SPEED_KMH 구간 시작 횟수)",
-        # ]
-
-        # notes = [
-        # "is_black: True → 블랙 프레임, False → 정상 프레임",
-        # "check: Y → 단발 튐(앞뒤 같고 가운데만 다른 경우), N → 정상",
-        # ]
-
-        # base_col = time_s_col + 1
-        # for k, text in enumerate(notes):
-        #     ws.write(header_row, base_col + k, text)
 
     if debug:
         print(f"[DEBUG] Exported rows: {len(out)}")

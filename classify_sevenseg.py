@@ -1,4 +1,3 @@
-# classify_sevenseg_two_digit_Afix.py
 # 7세그 숫자 분류(디스큐 포함, 2자리 고정 레이아웃)
 # 개선점:
 #  - [A] 상단 가로 세그먼트('A') 임계 강화(특히 일의 자리)
@@ -388,9 +387,10 @@ def main():
         cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
 
         # 7) CSV 저장
+        preds_str = '"' + " ".join(preds) + '"'
         rows.append(
             f"{os.path.basename(p)},{len(preds)},{pred_number},"
-            f"{','.join(preds)},{' '.join(confs)},{' '.join(dists)},"
+            f"{preds_str},{' '.join(confs)},{' '.join(dists)},"
             f"{'|'.join(states_dump)}\n"
         )
         ok += 1
