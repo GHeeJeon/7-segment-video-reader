@@ -390,7 +390,7 @@ def main():
         # 7) CSV 저장
         rows.append(
             f"{os.path.basename(p)},{len(preds)},{pred_number},"
-            f"{' '.join(preds)},{' '.join(confs)},{' '.join(dists)},"
+            f"{','.join(preds)},{' '.join(confs)},{' '.join(dists)},"
             f"{'|'.join(states_dump)}\n"
         )
         ok += 1
