@@ -300,29 +300,29 @@ def match_digit(states):
         return -1, conf, best_dist
 
 # ---------- 시각화 ----------
-def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
-    vis = bgr.copy()
-    cx0, cy0, cx1, cy1 = core
-    # 핵심 박스(파란색)
-    cv2.rectangle(vis, (cx0,cy0), (cx1,cy1), (255,0,0), 1)
-    for (place, dbox), (pred, conf, dist, states) in zip(pair_boxes, per_digit):
-        dx0, dy0, dx1, dy1 = dbox
-        # 자릿수 박스(보라색)
-        cv2.rectangle(vis, (dx0,dy0), (dx1,dy1), (255,0,255), 1)
-        # 세그먼트
-        Wc = dx1 - dx0 + 1; Hc = dy1 - dy0 + 1
-        for j, key in enumerate(SEG_ORDER):
-            s = SEGS[key]
-            x0 = dx0 + int(s.x0 * Wc); x1 = dx0 + int(s.x1 * Wc)
-            y0 = dy0 + int(s.y0 * Hc); y1 = dy0 + int(s.y1 * Hc)
-            color = (0,255,0) if states[j] == 1 else (0,0,255)
-            cv2.rectangle(vis, (x0,y0), (x1,y1), color, 1)
-        label = f"{place}:{pred}({conf:.2f})"
-        cv2.putText(vis, label, (dx0, max(10, dy0-6)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2, cv2.LINE_AA)
-        cv2.putText(vis, label, (dx0, max(10, dy0-6)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
-    return vis
+# def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
+#     vis = bgr.copy()
+#     cx0, cy0, cx1, cy1 = core
+#     # 핵심 박스(파란색)
+#     cv2.rectangle(vis, (cx0,cy0), (cx1,cy1), (255,0,0), 1)
+#     for (place, dbox), (pred, conf, dist, states) in zip(pair_boxes, per_digit):
+#         dx0, dy0, dx1, dy1 = dbox
+#         # 자릿수 박스(보라색)
+#         cv2.rectangle(vis, (dx0,dy0), (dx1,dy1), (255,0,255), 1)
+#         # 세그먼트
+#         Wc = dx1 - dx0 + 1; Hc = dy1 - dy0 + 1
+#         for j, key in enumerate(SEG_ORDER):
+#             s = SEGS[key]
+#             x0 = dx0 + int(s.x0 * Wc); x1 = dx0 + int(s.x1 * Wc)
+#             y0 = dy0 + int(s.y0 * Hc); y1 = dy0 + int(s.y1 * Hc)
+#             color = (0,255,0) if states[j] == 1 else (0,0,255)
+#             cv2.rectangle(vis, (x0,y0), (x1,y1), color, 1)
+#         label = f"{place}:{pred}({conf:.2f})"
+#         cv2.putText(vis, label, (dx0, max(10, dy0-6)),
+#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2, cv2.LINE_AA)
+#         cv2.putText(vis, label, (dx0, max(10, dy0-6)),
+#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+#     return vis
 
 # ---------- 메인 ----------
 def main():
@@ -383,8 +383,8 @@ def main():
             pred_number = tens_pred * 10 + ones_pred
 
         # 6) 시각화 저장
-        vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
-        cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
+        # vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
+        # cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
 
         # 7) CSV 저장
         preds_str = '"' + " ".join(preds) + '"'
