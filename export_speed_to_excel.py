@@ -115,14 +115,14 @@ def export_speed_xlsx(
     spd = out["speed"].astype(float)     # km/h
     t = out["time_s"].astype(float)      # s
 
-    # 총 주행 시간: 유효구간 길이 = max(time) - min(time)
-    total_time = float(t.max() - t.min()) if t.notna().any() else 0.0
+    # 총 주행 시간: (시작 ~ 끝) / fps(예: 30)
+    total_time = float((end_save - start_save + 1) / fps)
 
     # 참고: 등간격 샘플 평균(권장)
     # avg_speed_mean = float(spd.mean()) if not spd.empty else float("nan")
 
     # 평균속력 (요청식): ∑속도 / 총 주행 시간
-    avg_speed_requested = float(spd.sum() / total_time) if total_time > 0 else float("nan")
+    avg_speed_requested = float(spd.sum() / (total_time * fps)) if total_time > 0 else float("nan")
 
     # 과속 마스크
     over_mask = spd > OVER_SPEED_KMH
