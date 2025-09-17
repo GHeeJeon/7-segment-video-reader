@@ -79,16 +79,16 @@ def export_speed_xlsx(
         print("No valid start index found")
         return out_xlsx_path
 
-    # 시작 프레임 바로 앞 0 포함
-    start_save = start_idx - 1 if start_idx > 0 else start_idx
+    # 시작 프레임
+    start_save = start_idx
 
-    # 종료: 블랙 직전 0 제거 (단 1프레임 유지)
+    # 종료: 블랙 직전 0 제거
     right_limit = black_idx if black_idx is not None else len(df)
     j = right_limit - 1
     while j >= start_idx and speeds.iloc[j] == 0:
         j -= 1
     trimmed_end = j
-    end_save = trimmed_end + 1 if trimmed_end + 1 < right_limit and speeds.iloc[trimmed_end + 1] == 0 else trimmed_end
+    end_save = trimmed_end
 
     # 시간 계산
     time_s = [None] * len(df)
@@ -119,7 +119,10 @@ def export_speed_xlsx(
     total_time = float(t.max() - t.min()) if t.notna().any() else 0.0
 
     # 참고: 등간격 샘플 평균(권장)
-    avg_speed_mean = float(spd.mean()) if not spd.empty else float("nan")
+    # avg_speed_mean = float(spd.mean()) if not spd.empty else float("nan")
+
+    # 평균속력 (요청식): ∑속도 / 총 주행 시간
+    avg_speed_requested = float(spd.sum() / total_time) if total_time > 0 else float("nan")
 
     # 과속 마스크
     over_mask = spd > OVER_SPEED_KMH
@@ -146,7 +149,7 @@ def export_speed_xlsx(
     part_over_speed_distance = float(((spd[over_mask] - OVER_SPEED_KMH) / den).sum())
 
     # 편차들
-    mean_spd = float(avg_speed_mean) if not np.isnan(avg_speed_mean) else float("nan")
+    mean_spd = float(avg_speed_requested) if not np.isnan(avg_speed_requested) else float("nan")
 
     # 표준정의 표준편차(모집단)
     std_pop = float(np.sqrt(((spd - mean_spd) ** 2).mean())) if not spd.empty else float("nan")
@@ -163,7 +166,7 @@ def export_speed_xlsx(
     # 메트릭 표 (가독성을 위해 단위 병기)
     metrics_df = pd.DataFrame([{
         "총 주행 시간(s)": total_time,
-        "평균속력(권장: mean) [km/h]": avg_speed_mean,
+        "평균속력 [km/h]": avg_speed_requested,
         "총 과속 시간(s)": over_speed_time,
         "총 과속 거리(전체)(km)": total_over_speed_distance,
         "총 과속 거리(초과분만)(km)": part_over_speed_distance,
