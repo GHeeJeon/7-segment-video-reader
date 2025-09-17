@@ -75,7 +75,7 @@ python classify_sevenseg.py
 python3 classify_sevenseg.py
 ```
 5. `export_speed_to_excel.py`에서 내보낸 `.csv` 파일로 `.xlsx` 파일을 만들어요.
-#### 5번 다음의 명령어 중 하나를 사용해요
+#### 5번 다음의 명령어 중 하나를 사용해요!
 ```shell
 python export_speed_to_excel.py
 python3 export_speed_to_excel.py
