@@ -124,40 +124,51 @@ def export_speed_xlsx(
     # 평균속력 (요청식): ∑속도 / 총 주행 시간
     avg_speed_requested = float(spd.sum() / (total_time * fps)) if total_time > 0 else float("nan")
 
-    # 과속 마스크
-    over_mask = spd > OVER_SPEED_KMH
+    # ---------------- 새로운 과속 정의 ----------------
+    # 60km/h 초과 여부 마스크
+    raw_mask = spd > 60.0    
+    
+    # 연속 run-length 계산
+    over_mask = np.zeros_like(raw_mask, dtype=bool)
+    if raw_mask.any():
+        run_len = 0
+        for i, flag in enumerate(raw_mask):
+            if flag:
+                run_len += 1
+                if run_len >= fps:  # 30프레임(1초) 이상이면 과속 인정
+                    over_mask[i] = True
+            else:
+                run_len = 0
 
-    # 과속 프레임 수(참고)
+    # (1) 과속 프레임 수
     over_frame_cnt = int(over_mask.sum())
 
-    # 과속 '구간' 횟수: v>OVER_SPEED_KMH 이 새로 시작되는 순간의 개수
-    # (이전 프레임이 OVER_SPEED_KMH 이하이고 현재가 OVER_SPEED_KMH 초과이면 카운트)
-    prev_over = (spd.shift(1, fill_value=0) > OVER_SPEED_KMH)
+    # (2) 과속 '구간' 횟수 (연속 1초 이상 구간 단위)
+    prev_over = np.roll(over_mask, 1)
+    prev_over[0] = False
     over_start = over_mask & (~prev_over)
     over_segments = int(over_start.sum())
 
-    # 총 과속 시간(s): 과속 프레임 수 / fps
+    # (3) 총 과속 시간(s): 과속 프레임 수 / fps
     over_speed_time = float(over_frame_cnt / float(fps))
 
-    # 거리 환산 상수: v[km/h] -> v/(fps*3600) [km/frame]
+    # (4) 총 과속 거리(전체): ∑ v/(fps*3600) [km]
     den = float(fps) * 3600.0
-
-    # 총 과속 거리(전체): ∑(v>OVER_SPEED_KMH) v / (fps*3600)
     total_over_speed_distance = float((spd[over_mask] / den).sum())
 
-    # 총 과속 거리(초과분만): ∑(v>OVER_SPEED_KMH) (v-OVER_SPEED_KMH) / (fps*3600)
-    part_over_speed_distance = float(((spd[over_mask] - OVER_SPEED_KMH) / den).sum())
+    # (5) 총 과속 거리(초과분만, 기준 60km/h): ∑ (v-60)/(fps*3600)
+    part_over_speed_distance = float(((spd[over_mask] - 60.0) / den).sum())
 
-    # 편차들
+    # ---------------- 편차 계산 ----------------
     mean_spd = float(avg_speed_requested) if not np.isnan(avg_speed_requested) else float("nan")
 
-    # 표준정의 표준편차(모집단)
+    # (6) 표준편차(모집단)
     std_pop = float(np.sqrt(((spd - mean_spd) ** 2).mean())) if not spd.empty else float("nan")
 
-    # (참고) 타깃 RMSE
-    target_rmse = float(np.sqrt(((OVER_SPEED_KMH - spd) ** 2).mean())) if not spd.empty else float("nan")
+    # (7) 타깃 속도 RMSE (60 기준)
+    target_rmse = float(np.sqrt(((60.0 - spd) ** 2).mean())) if not spd.empty else float("nan")
 
-    # 🔹 50~60km/h 주행 시간 및 비율 추가
+    # 🔹 50~60km/h 주행 시간 및 비율
     mask_50_60 = (spd >= 50) & (spd <= 60)
     time_50_60 = float(mask_50_60.sum() / float(fps))  # 초 단위
     ratio_50_60 = float((time_50_60 / total_time * 100)) if total_time > 0 else float("nan")
