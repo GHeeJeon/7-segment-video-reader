@@ -6,3 +6,4 @@ _cls_overlay
 *.mp4
 !test/frames30_pts
 !test/_cls_overlay
+__pycache__
