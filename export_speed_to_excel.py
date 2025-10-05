@@ -1,5 +1,5 @@
 """
-7세그 속도 + 시간 엑셀 내보내기 (필터 적용 + 종료 전 0구간 제거 + 메트릭 상단 1회 표기 + check 컬럼 추가)
+7세그 속도 + 시간 엑셀 내보내기 (필터 적용 + 종료 전 0구간 제거 + 메트릭 상단 1회 표기 + check 컬럼 + 급가속/급감속 감지)
 
 - classify_sevenseg.py가 생성한 분류 CSV를 읽어 시간 열을 포함한 엑셀 파일을 작성합니다.
 - 엑셀에는 다음 구간만 저장합니다.
@@ -8,6 +8,7 @@
     - 블랙 직전 연속된 0 구간은 제외 (마지막 0 한 프레임은 유지)
   * 블랙 프레임이 없을 경우: 파일 끝까지 포함 (말단 0 구간 강제 제거 X)
 - check 컬럼: 단발 튐(앞뒤가 같은데 가운데만 다른 경우)을 Y로 마킹
+- 급가속/급감속 컬럼: 1초(30프레임) 전 대비 ±10km/h 이상 변화 시 Y
 """
 
 import os
@@ -15,7 +16,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-# ===== 과속 임계 =====
+# ===== 설정 상수 =====
 OVER_SPEED_KMH = 60.0  # 과속 기준(km/h)
 
 def is_spike_among_plateaus(speeds: list[int], i: int) -> bool:
@@ -61,6 +62,7 @@ def export_speed_xlsx(
 
     speeds = pd.to_numeric(df["pred_number"], errors="coerce").fillna(0).astype(int)
 
+    # ----- 구간 설정 -----
     # 말단 연속된 -1 제거
     end_idx = len(speeds) - 1
     last_valid_idx = end_idx
@@ -68,113 +70,100 @@ def export_speed_xlsx(
         last_valid_idx -= 1
     black_idx = last_valid_idx + 1 if last_valid_idx < end_idx else None
 
-    # 시작: 0 → 1 이상 전이되는 지점 찾기
+    # 시작 프레임 찾기 (0→≥1 전이)
     start_idx = None
     for i in range(1, len(speeds)):
         if speeds.iloc[i] >= 1 and speeds.iloc[i - 1] == 0:
             start_idx = i
             break
-
     if start_idx is None:
         print("No valid start index found")
         return out_xlsx_path
 
-    # 시작 프레임
     start_save = start_idx
-
-    # 종료: 블랙 직전 0 제거
     right_limit = black_idx if black_idx is not None else len(df)
+
+    # 블랙 직전 0 제거
     j = right_limit - 1
     while j >= start_idx and speeds.iloc[j] == 0:
         j -= 1
-    trimmed_end = j
-    end_save = trimmed_end
+    end_save = j
 
-    # 시간 계산
+    # ----- 시간 및 데이터 정리 -----
     time_s = [None] * len(df)
     for i in range(start_idx, end_save + 1):
         time_s[i] = (i - start_idx) / float(fps)
 
-    df["speed"] = speeds               # km/h (정수)
-    df["time_s"] = time_s              # seconds
+    df["speed"] = speeds
+    df["time_s"] = time_s
     df["is_black"] = (speeds == -1).astype(bool)
-
     out = df.iloc[start_save:end_save + 1].reset_index(drop=True)
-
-    # time_s 보정
     out["time_s"] = pd.to_numeric(out["time_s"], errors="coerce").ffill().fillna(0.0)
-    
     out["is_black"] = out["speed"].eq(-1)
 
-    # check 컬럼 추가
+    # ----- check 컬럼 -----
     speeds_list = out["speed"].tolist()
-    check_col = ["Y" if is_spike_among_plateaus(speeds_list, i) else "N" for i in range(len(speeds_list))]
-    out["check"] = check_col
+    out["check"] = ["Y" if is_spike_among_plateaus(speeds_list, i) else "N" for i in range(len(speeds_list)))]
 
     # ---------- 통계 메트릭 ----------
-    spd = out["speed"].astype(float)     # km/h
-    t = out["time_s"].astype(float)      # s
-
-    # 총 주행 시간: (시작 ~ 끝) / fps(예: 30)
+    spd = out["speed"].astype(float)
     total_time = float((end_save - start_save + 1) / fps)
-
-    # 참고: 등간격 샘플 평균(권장)
-    # avg_speed_mean = float(spd.mean()) if not spd.empty else float("nan")
-
-    # 평균속력 (요청식): ∑속도 / 총 주행 시간
     avg_speed_requested = float(spd.sum() / (total_time * fps)) if total_time > 0 else float("nan")
 
-    # ---------------- 새로운 과속 정의 ----------------
-    # 60km/h 초과 여부 마스크
-    raw_mask = spd > 60.0    
-    
-    # 연속 run-length 계산
+    # ----- 과속 정의 -----
+    raw_mask = spd > OVER_SPEED_KMH
     over_mask = np.zeros_like(raw_mask, dtype=bool)
     if raw_mask.any():
         run_len = 0
         for i, flag in enumerate(raw_mask):
             if flag:
                 run_len += 1
-                if run_len >= fps:  # 30프레임(1초) 이상이면 과속 인정
+                if run_len >= fps:
                     over_mask[i] = True
             else:
                 run_len = 0
 
-    # (1) 과속 프레임 수
     over_frame_cnt = int(over_mask.sum())
-
-    # (2) 과속 '구간' 횟수 (연속 1초 이상 구간 단위)
     prev_over = np.roll(over_mask, 1)
     prev_over[0] = False
     over_start = over_mask & (~prev_over)
     over_segments = int(over_start.sum())
-
-    # (3) 총 과속 시간(s): 과속 프레임 수 / fps
     over_speed_time = float(over_frame_cnt / float(fps))
-
-    # (4) 총 과속 거리(전체): ∑ v/(fps*3600) [km]
     den = float(fps) * 3600.0
     total_over_speed_distance = float((spd[over_mask] / den).sum())
+    part_over_speed_distance = float(((spd[over_mask] - OVER_SPEED_KMH) / den).sum())
 
-    # (5) 총 과속 거리(초과분만, 기준 60km/h): ∑ (v-60)/(fps*3600)
-    part_over_speed_distance = float(((spd[over_mask] - 60.0) / den).sum())
-
-    # ---------------- 편차 계산 ----------------
+    # ----- 편차 -----
     mean_spd = float(avg_speed_requested) if not np.isnan(avg_speed_requested) else float("nan")
-
-    # (6) 표준편차(모집단)
     std_pop = float(np.sqrt(((spd - mean_spd) ** 2).mean())) if not spd.empty else float("nan")
+    target_rmse = float(np.sqrt(((OVER_SPEED_KMH - spd) ** 2).mean())) if not spd.empty else float("nan")
 
-    # (7) 타깃 속도 RMSE (60 기준)
-    target_rmse = float(np.sqrt(((60.0 - spd) ** 2).mean())) if not spd.empty else float("nan")
-
-    # 🔹 50~60km/h 주행 시간 및 비율
+    # ----- 50~60km/h 구간 -----
     mask_50_60 = (spd >= 50) & (spd <= 60)
-    time_50_60 = float(mask_50_60.sum() / float(fps))  # 초 단위
+    time_50_60 = float(mask_50_60.sum() / float(fps))
     ratio_50_60 = float((time_50_60 / total_time * 100)) if total_time > 0 else float("nan")
 
+    # ---------------- 급가속 / 급감속 ----------------
+    delta_v_1s = spd - spd.shift(fps)
+    accel_mask = delta_v_1s >= 10.0
+    decel_mask = delta_v_1s <= -10.0
 
-    # 메트릭 표 (가독성을 위해 단위 병기)
+    # 첫 1초(30프레임)는 비교 제외
+    accel_mask.iloc[:fps] = False
+    decel_mask.iloc[:fps] = False
+
+    accel_start = accel_mask & (~np.roll(accel_mask, 1))
+    decel_start = decel_mask & (~np.roll(decel_mask, 1))
+    accel_start.iloc[0] = False
+    decel_start.iloc[0] = False
+
+    accel_segments = int(accel_start.sum())
+    decel_segments = int(decel_start.sum())
+
+    out["급가속_YN"] = ["Y" if flag else "N" for flag in accel_mask]
+    out["급감속_YN"] = ["Y" if flag else "N" for flag in decel_mask]
+
+    # ----- 메트릭 테이블 -----
     metrics_df = pd.DataFrame([{
         "총 주행 시간(s)": total_time,
         "평균속력 [km/h]": avg_speed_requested,
@@ -185,6 +174,8 @@ def export_speed_xlsx(
         "Target RMSE(target=60) [km/h]": target_rmse,
         "과속 프레임 수(>60)": over_frame_cnt,
         "과속 횟수(구간, >60)": over_segments,
+        "급가속 횟수(Δv≥+10)": accel_segments,
+        "급감속 횟수(Δv≤-10)": decel_segments,
         "50~60km/h 주행 시간(s)": time_50_60,
         "50~60km/h 비율(%)": ratio_50_60,
     }])
@@ -201,26 +192,17 @@ def export_speed_xlsx(
         {"key": "exported_rows", "value": len(out)},
     ])
 
-    # 엑셀 저장
+    # ----- 엑셀 저장 -----
     with pd.ExcelWriter(out_xlsx_path, engine="xlsxwriter") as writer:
         metrics_df.to_excel(writer, index=False, sheet_name="speed_time", startrow=0)
         out_startrow = metrics_df.shape[0] + 2
         out.to_excel(writer, index=False, sheet_name="speed_time", startrow=out_startrow)
         meta_df.to_excel(writer, index=False, sheet_name="meta")
 
-        # notes: time_s 헤더 오른쪽부터 가로로 표기
-        ws = writer.sheets["speed_time"]
-        header_row = out_startrow  # out의 헤더가 써진 행
-        # time_s 컬럼 찾기
-        try:
-            time_s_col = out.columns.get_loc("time_s")
-        except KeyError:
-            time_s_col = len(out.columns)  # 안전장치: 못 찾으면 맨 끝 기준
-
     if debug:
         print(f"[DEBUG] Exported rows: {len(out)}")
-        print(f"[DEBUG] Start: {df.iloc[start_save]['filename']} (speed={df.iloc[start_save]['speed']})")
-        print(f"[DEBUG] End: {df.iloc[end_save]['filename']} (speed={df.iloc[end_save]['speed']})")
+        print(f"[DEBUG] Start: {df.iloc[start_save]['filename']}")
+        print(f"[DEBUG] End: {df.iloc[end_save]['filename']}")
 
     return out_xlsx_path
 
