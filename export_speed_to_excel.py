@@ -103,7 +103,7 @@ def export_speed_xlsx(
 
     # ----- check 컬럼 -----
     speeds_list = out["speed"].tolist()
-    out["check"] = ["Y" if is_spike_among_plateaus(speeds_list, i) else "N" for i in range(len(speeds_list)))]
+    out["check"] = ["Y" if is_spike_among_plateaus(speeds_list, i) else "N" for i in range(len(speeds_list))]
 
     # ---------- 통계 메트릭 ----------
     spd = out["speed"].astype(float)
@@ -228,3 +228,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
