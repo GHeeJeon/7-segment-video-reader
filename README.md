@@ -81,6 +81,21 @@ python export_speed_to_excel.py
 python3 export_speed_to_excel.py
 ```
 
+## 동영상 개별 테스트 방법
+1. 프로젝트 루트 위치에서 파이썬 가상환경 세팅
+2. `cd test`  
+3.  csv 파일 추출 시: test 에 동영상 파일 추가 후 다음의 명령어 실행
+
+```shell
+python ../classify_sevenseg.py
+python3 ../classify_sevenseg.py
+```
+4. excel 파일 추출 시: test 에 csv 파일 추가 후 다음의 명령어 실행
+```shell
+python ../export_speed_to_excel.py
+python3 ../export_speed_to_excel.py
+```
+
 ## 지금도 잘 돌아가지만, 추가로 뭘 더 해야하냐면요...
 1. 코드 리팩토링
 2. 범용성 고민해보기 - 현재 특정 사이즈의 검정 배경 흰 글자만 인식 가능
