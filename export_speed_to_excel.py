@@ -46,6 +46,7 @@ def export_speed_xlsx(
     out_xlsx_path: str = "_speed_time.xlsx",
     fps: int = 30,
     debug: bool = False,
+    show_tech_cols: bool = False,
 ) -> str:
     if not os.path.isfile(cls_csv_path):
         raise FileNotFoundError(f"CSV not found: {cls_csv_path}")
@@ -166,14 +167,13 @@ def export_speed_xlsx(
     accel_segments = int(accel_start.sum())
     decel_segments = int(decel_start.sum())
 
-    out["급가속_YN"] = ["Y" if flag else "N" for flag in accel_mask]
-    out["급감속_YN"] = ["Y" if flag else "N" for flag in decel_mask]
-    
+    out["rapid_accel"] = ["Y" if flag else "N" for flag in accel_mask]
+    out["rapid_decel"] = ["Y" if flag else "N" for flag in decel_mask]
+
     # ---------------- 30프레임 이전 속도 ----------------
-    # 급가속 또는 급감속일 때 30프레임 이전의 속도를 표시
     speed_30frames_ago = spd.shift(fps)
     out["speed_30f_ago"] = speed_30frames_ago
-    # 급가속도 급감속도 아닌 경우 빈 값으로 표시 (선택사항)
+    # 급가속도 급감속도 아닌 경우 빈 값으로 표시
     out.loc[~(accel_mask | decel_mask), "speed_30f_ago"] = None
 
     # ----- 메트릭 테이블 -----
@@ -204,20 +204,45 @@ def export_speed_xlsx(
         {"key": "end_save", "value": end_save},
         {"key": "csv_rows", "value": len(df)},
         {"key": "exported_rows", "value": len(out)},
+        {"key": "show_tech_cols", "value": show_tech_cols},
     ])
 
-   # ----- 클라이언트용 컬럼 -----
-    out_client = out[["filename", "speed", "time_s", "is_black", "check", "급가속_YN", "급감속_YN", "speed_30f_ago"]].copy()
-    out_client = out_client.rename(columns={
-        "filename": "파일명",
-        "speed": "속도(km/h)",
-        "time_s": "시간(초)",
-        "is_black": "블랙프레임",
-        "check": "노이즈감지",
-        "rapid_accel": "급가속_YN",
-        "rapid_decel": "급감속_YN",
-        "speed_30f_ago": "30프레임전_속도(km/h)"
-    })
+    # ----- 클라이언트용 컬럼 선택 -----
+    if show_tech_cols:
+        # 기술 컬럼 포함 (모든 컬럼 표시)
+        base_cols = ["filename", "num_digits", "pred_number", "preds", "confs", "dists", "states_per_digit"]
+        user_cols = ["speed", "time_s", "is_black", "check", "rapid_accel", "rapid_decel", "speed_30f_ago"]
+        
+        # CSV에 실제로 존재하는 컬럼만 선택
+        available_base = [col for col in base_cols if col in out.columns]
+        all_cols = available_base + user_cols
+        out_client = out[all_cols].copy()
+        
+        # 한글 컬럼명 변경 (기술 컬럼은 그대로, 사용자 컬럼만 한글화)
+        rename_dict = {
+            "speed": "속도(km/h)",
+            "time_s": "시간(초)",
+            "is_black": "블랙프레임",
+            "check": "노이즈감지",
+            "rapid_accel": "급가속_YN",
+            "rapid_decel": "급감속_YN",
+            "speed_30f_ago": "30프레임전_속도(km/h)"
+        }
+    else:
+        # 기본 모드: 클라이언트용 컬럼만
+        out_client = out[["filename", "speed", "time_s", "is_black", "check", "rapid_accel", "rapid_decel", "speed_30f_ago"]].copy()
+        rename_dict = {
+            "filename": "파일명",
+            "speed": "속도(km/h)",
+            "time_s": "시간(초)",
+            "is_black": "블랙프레임",
+            "check": "노이즈감지",
+            "rapid_accel": "급가속_YN",
+            "rapid_decel": "급감속_YN",
+            "speed_30f_ago": "30프레임전_속도(km/h)"
+        }
+    
+    out_client = out_client.rename(columns=rename_dict)
 
     # ----- 엑셀 저장 -----
     with pd.ExcelWriter(out_xlsx_path, engine="xlsxwriter") as writer:
@@ -230,6 +255,7 @@ def export_speed_xlsx(
         print(f"[DEBUG] Exported rows: {len(out)}")
         print(f"[DEBUG] Start: {df.iloc[start_save]['filename']}")
         print(f"[DEBUG] End: {df.iloc[end_save]['filename']}")
+        print(f"[DEBUG] Show tech columns: {show_tech_cols}")
 
     return out_xlsx_path
 
@@ -240,7 +266,12 @@ def main():
     ap.add_argument("--out_xlsx", default="_speed_time.xlsx", help="출력 XLSX 경로")
     ap.add_argument("--fps", type=int, default=30, help="FPS (기본값: 30)")
     ap.add_argument("--debug", action="store_true", help="디버그 출력")
-
+    ap.add_argument(
+    "-a", "--all-cols",
+    action="store_true",
+    help="모든 컬럼 표시 (num_digits, pred_number, preds, confs, dists, states_per_digit 포함)"
+)
+    
     args = ap.parse_args()
 
     out = export_speed_xlsx(
@@ -248,6 +279,7 @@ def main():
         out_xlsx_path=args.out_xlsx,
         fps=args.fps,
         debug=args.debug,
+        show_tech_cols=args.all_cols,
     )
 
     print(f"Wrote: {out}")
@@ -255,4 +287,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

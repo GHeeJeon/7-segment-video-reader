@@ -2,14 +2,14 @@
 # 개선점:
 #  - [A] 상단 가로 세그먼트('A') 임계 강화(특히 일의 자리)
 #  - [B] 배경이 충분히 어두우면 HEX 기준으로 강제 #000000 처리(블랙 클리핑)
-import os, glob, cv2, numpy as np
+#  - [C] 시각화 저장을 선택적으로 실행 가능
+import os, glob, cv2, numpy as np, argparse
 from collections import namedtuple
 
 # ===== 입출력 =====
 IN_DIR   = r"./frames30_pts"  # 입력 폴더
 OUT_CSV  = r"_cls_result.csv"
 VIS_DIR  = r"_cls_overlay"
-os.makedirs(VIS_DIR, exist_ok=True)
 
 # ===== 전처리 =====
 INVERT           = False
@@ -300,32 +300,42 @@ def match_digit(states):
         return -1, conf, best_dist
 
 # ---------- 시각화 ----------
-# def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
-#     vis = bgr.copy()
-#     cx0, cy0, cx1, cy1 = core
-#     # 핵심 박스(파란색)
-#     cv2.rectangle(vis, (cx0,cy0), (cx1,cy1), (255,0,0), 1)
-#     for (place, dbox), (pred, conf, dist, states) in zip(pair_boxes, per_digit):
-#         dx0, dy0, dx1, dy1 = dbox
-#         # 자릿수 박스(보라색)
-#         cv2.rectangle(vis, (dx0,dy0), (dx1,dy1), (255,0,255), 1)
-#         # 세그먼트
-#         Wc = dx1 - dx0 + 1; Hc = dy1 - dy0 + 1
-#         for j, key in enumerate(SEG_ORDER):
-#             s = SEGS[key]
-#             x0 = dx0 + int(s.x0 * Wc); x1 = dx0 + int(s.x1 * Wc)
-#             y0 = dy0 + int(s.y0 * Hc); y1 = dy0 + int(s.y1 * Hc)
-#             color = (0,255,0) if states[j] == 1 else (0,0,255)
-#             cv2.rectangle(vis, (x0,y0), (x1,y1), color, 1)
-#         label = f"{place}:{pred}({conf:.2f})"
-#         cv2.putText(vis, label, (dx0, max(10, dy0-6)),
-#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2, cv2.LINE_AA)
-#         cv2.putText(vis, label, (dx0, max(10, dy0-6)),
-#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
-#     return vis
+def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
+    vis = bgr.copy()
+    cx0, cy0, cx1, cy1 = core
+    # 핵심 박스(파란색)
+    cv2.rectangle(vis, (cx0,cy0), (cx1,cy1), (255,0,0), 1)
+    for (place, dbox), (pred, conf, dist, states) in zip(pair_boxes, per_digit):
+        dx0, dy0, dx1, dy1 = dbox
+        # 자릿수 박스(보라색)
+        cv2.rectangle(vis, (dx0,dy0), (dx1,dy1), (255,0,255), 1)
+        # 세그먼트
+        Wc = dx1 - dx0 + 1; Hc = dy1 - dy0 + 1
+        for j, key in enumerate(SEG_ORDER):
+            s = SEGS[key]
+            x0 = dx0 + int(s.x0 * Wc); x1 = dx0 + int(s.x1 * Wc)
+            y0 = dy0 + int(s.y0 * Hc); y1 = dy0 + int(s.y1 * Hc)
+            color = (0,255,0) if states[j] == 1 else (0,0,255)
+            cv2.rectangle(vis, (x0,y0), (x1,y1), color, 1)
+        label = f"{place}:{pred}({conf:.2f})"
+        cv2.putText(vis, label, (dx0, max(10, dy0-6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2, cv2.LINE_AA)
+        cv2.putText(vis, label, (dx0, max(10, dy0-6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+    return vis
 
 # ---------- 메인 ----------
 def main():
+    # 명령줄 인자 파싱
+    parser = argparse.ArgumentParser(description='7-segment 숫자 분류')
+    parser.add_argument('-o', '--overlay', action='store_true',
+                        help='인식 결과 오버레이 이미지 저장')
+    args = parser.parse_args()
+
+    # overlay 활성화 시에만 폴더 생성
+    if args.overlay:
+        os.makedirs(VIS_DIR, exist_ok=True)
+
     patterns = ("*.[Pp][Nn][Gg]", "*.[Jj][Pp][Gg]", "*.[Jj][Pp][Ee][Gg]")
     paths = []
     for pat in patterns:
@@ -382,9 +392,10 @@ def main():
         else:
             pred_number = tens_pred * 10 + ones_pred
 
-        # 6) 시각화 저장
-        # vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
-        # cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
+        # 6) 시각화 저장 (옵션이 활성화된 경우에만)
+        if args.overlay:
+            vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
+            cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
 
         # 7) CSV 저장
         preds_str = '"' + " ".join(preds) + '"'
@@ -397,7 +408,11 @@ def main():
 
     with open(OUT_CSV, "w", encoding="utf-8") as f:
         f.writelines(rows)
-    print(f"완료: {ok}장 분류 → {OUT_CSV} / 오버레이: {VIS_DIR}")
+    
+    if args.overlay:
+        print(f"완료: {ok}장 분류 → {OUT_CSV} / 오버레이: {VIS_DIR}")
+    else:
+        print(f"완료: {ok}장 분류 → {OUT_CSV}")
 
 if __name__ == "__main__":
     main()
