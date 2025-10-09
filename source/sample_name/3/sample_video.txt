@@ -1,1 +1,1 @@
-sample video
+sample video, 결과물은 source/{name}/{num}/{num} 안에 저장

@@ -262,22 +262,16 @@ def export_speed_xlsx(
 
 def main():
     ap = argparse.ArgumentParser(description="7-segment speed CSV to Excel exporter")
-    ap.add_argument("-c", "--cls_csv", default="_cls_result.csv", help="입력 CSV 경로")
-    ap.add_argument("-o", "--out_xlsx", default="_speed_time.xlsx", help="출력 XLSX 경로")
     ap.add_argument("-f", "--fps", type=int, default=30, help="FPS (기본값: 30)")
-    ap.add_argument("-d", "--debug", action="store_true", help="디버그 출력")
-    ap.add_argument(
-    "-a", "--all-cols",
-    action="store_true",
-    help="모든 컬럼 표시 (num_digits, pred_number, preds, confs, dists, states_per_digit 포함)")
-    
+    ap.add_argument("-a", "--all-cols", action="store_true", help="모든 컬럼 표시 (num_digits, pred_number, preds, confs, dists, states_per_digit 포함)")
+
     args = ap.parse_args()
 
     out = export_speed_xlsx(
-        cls_csv_path=args.cls_csv,
-        out_xlsx_path=args.out_xlsx,
+        cls_csv_path="_cls_result.csv",
+        out_xlsx_path="_speed_time.xlsx",
         fps=args.fps,
-        debug=args.debug,
+        debug=False,
         show_tech_cols=args.all_cols,
     )
 

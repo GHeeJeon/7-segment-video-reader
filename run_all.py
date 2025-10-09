@@ -127,7 +127,7 @@ def export_excel(cls_csv: Path, frames_dir: Path, fps: int, debug: bool = False,
         out_xlsx_path=str(out_xlsx),
         fps=fps,
         debug=debug,
-        all_cols=all_cols,
+        show_tech_cols=all_cols,
     )
     if not out_xlsx.exists():
         raise RuntimeError(f"엑셀 파일이 생성되지 않았습니다: {out_xlsx}")
@@ -156,19 +156,19 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="ffmpeg 추출 → 분류 → 엑셀 내보내기")
-    ap.add_argument("--root", "-r", default=".", help="스크립트 기준 루트 경로")
-    ap.add_argument("--source", "-s", default="source", help="사람 폴더들을 담은 상위 폴더(경로/이름)")
-    ap.add_argument("--fps", "-f", type=int, default=DEFAULT_FPS, help="프레임 추출 FPS (기본 30)")
-    ap.add_argument("--crop", "-c", default=DEFAULT_CROP, help="ffmpeg crop 필터 문자열")
-    ap.add_argument("--video-ext", "-v", default=",".join(DEFAULT_VID_EXTS), help="처리할 동영상 확장자 콤마구분(.mp4,.mov)")
-    ap.add_argument("--skip-existing", "-x", action="store_true", help="이미 _speed_time.xlsx가 있으면 해당 영상은 건너뜀")
+    ap.add_argument("-r", "--root", default=".", help="스크립트 기준 루트 경로")
+    ap.add_argument("-s", "--source", default="source", help="사람 폴더들을 담은 상위 폴더(경로/이름)")
+    ap.add_argument("-f", "--fps", type=int, default=DEFAULT_FPS, help="프레임 추출 FPS (기본 30)")
+    ap.add_argument("-c", "--crop", default=DEFAULT_CROP, help="ffmpeg crop 필터 문자열")
+    ap.add_argument("-v", "--video-ext", default=",".join(DEFAULT_VID_EXTS), help="처리할 동영상 확장자 콤마구분(.mp4,.mov)")
+    ap.add_argument("-x", "--skip-existing", action="store_true", help="이미 _speed_time.xlsx가 있으면 해당 영상은 건너뜀")
 
     # classify_sevenseg 관련 옵션
-    ap.add_argument("--overlay", "-o", action="store_true", help="인식 결과 오버레이 이미지 저장 (classify_sevenseg.py)")
+    ap.add_argument("-o", "--overlay", action="store_true", help="인식 결과 오버레이 이미지 저장 (classify_sevenseg.py)")
 
     # export_speed_to_excel 관련 옵션
-    ap.add_argument("--debug", "-d", action="store_true", help="디버그 출력 (export_speed_to_excel.py)")
-    ap.add_argument("--all-cols", "-a", action="store_true", help="모든 컬럼 표시 (num_digits, preds 등 포함)")
+    ap.add_argument("-d", "--debug", action="store_true", help="디버그 출력 (export_speed_to_excel.py)")
+    ap.add_argument("-a", "--all-cols", action="store_true", help="모든 컬럼 표시 (num_digits, preds 등 포함)")
 
     args = ap.parse_args()
 
@@ -233,19 +233,19 @@ def main():
                 print(f"[오류] {v}: {e}")
 
     # 요약
-    ok_cnt = sum(1 for _, _, s in results if s == "ok")
+    ok_cnt = sum(1 for _, _, s in results if s.startswith("ok"))
     err_cnt = sum(1 for _, _, s in results if isinstance(s, str) and s.startswith("error"))
     skip_cnt = sum(1 for _, _, s in results if s == "skipped")
 
     print(f"완료. 성공 {ok_cnt}, 스킵 {skip_cnt}, 오류 {err_cnt}")
     for v, x, s in results:
-        if s == "ok":
-            print(f"  ✔ {v} → {x}")
+        if s.startswith("ok"):  # ← "ok"뿐만 아니라 "ok-export-only"도 포함
+            suffix = " (엑셀만)" if s == "ok-export-only" else ""
+            print(f"  ✔ {v} → {x}{suffix}")
         elif s == "skipped":
             print(f"  ↷ {v} (기존 결과 유지)")
         else:
             print(f"  ✖ {v} — {s}")
-
 
 if __name__ == "__main__":
     main()
