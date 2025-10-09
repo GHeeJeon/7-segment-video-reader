@@ -96,40 +96,38 @@ def run_ffmpeg(video: Path, frames_dir: Path, crop: str, fps: int) -> None:
         raise RuntimeError(f"ffmpeg가 프레임을 생성하지 못했습니다: {video}")
 
 
-def classify_frames(frames_dir: Path, work_dir: Path) -> Path:
-    """`classify_sevenseg.py` 모듈을 임포트 후, IN_DIR/OUT_CSV/VIS_DIR 동적으로 바꿔 main() 실행.
-    반환: 생성된 CSV 경로
-    """
+def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> Path:
+    """classify_sevenseg.py 모듈 실행"""
     import importlib
     cls = importlib.import_module("classify_sevenseg")
 
-    # 출력 경로 세팅
     out_csv = work_dir / "_cls_result.csv"
     vis_dir = work_dir / "_cls_overlay"
     vis_dir.mkdir(parents=True, exist_ok=True)
 
-    # 모듈 변수 오버라이드
     cls.IN_DIR = str(frames_dir)
     cls.OUT_CSV = str(out_csv)
     cls.VIS_DIR = str(vis_dir)
+    cls.OVERLAY = overlay  # 인식 이미지 생성하는 argument 전달
 
-    # 안전: 진행바가 코드에 추가되어도 잘 동작
     cls.main()
 
     if not out_csv.exists():
         raise RuntimeError(f"분류 CSV가 생성되지 않았습니다: {out_csv}")
     return out_csv
 
-def export_excel(cls_csv: Path, frames_dir: Path, fps: int) -> Path:
-    """`export_speed_to_excel.py`의 함수를 임포트해서 직접 호출."""
+def export_excel(cls_csv: Path, frames_dir: Path, fps: int, debug: bool = False, all_cols: bool = False) -> Path:
+    """export_speed_to_excel.py 모듈 실행"""
     import importlib
     ex = importlib.import_module("export_speed_to_excel")
     out_xlsx = cls_csv.parent / "_speed_time.xlsx"
+
     ex.export_speed_xlsx(
         cls_csv_path=str(cls_csv),
         out_xlsx_path=str(out_xlsx),
         fps=fps,
-        debug=False,
+        debug=debug,
+        all_cols=all_cols,
     )
     if not out_xlsx.exists():
         raise RuntimeError(f"엑셀 파일이 생성되지 않았습니다: {out_xlsx}")
@@ -137,33 +135,41 @@ def export_excel(cls_csv: Path, frames_dir: Path, fps: int) -> Path:
 
 # --------------------------- 메인 파이프라인 ---------------------------
 
-def process_video(video: Path, crop: str, fps: int) -> Path:
-    parent = video.parent  # 예: 1/
-    stem = video.stem      # 예: 동영상이름
+def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, all_cols: bool) -> Path:
+    parent = video.parent
+    stem = video.stem
     work_dir = parent / stem
     frames_dir = work_dir / "frames30_pts"
 
     # 1) ffmpeg 추출
     run_ffmpeg(video, frames_dir, crop=crop, fps=fps)
 
-    # 2) 분류 (frames_dir → _cls_result.csv, _cls_overlay/)
-    cls_csv = classify_frames(frames_dir, work_dir)
+    # 2) 분류 (overlay 플래그 전달)
+    cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)
 
-    # 3) 엑셀 내보내기 (CSV→_speed_time.xlsx)
-    xlsx = export_excel(cls_csv, frames_dir, fps=fps)
+    # 3) 엑셀 내보내기 (debug, all-cols 플래그 전달)
+    xlsx = export_excel(cls_csv, frames_dir, fps=fps, debug=debug, all_cols=all_cols)
 
     return xlsx
 
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="원클릭: ffmpeg 추출 → 분류 → 엑셀 내보내기")
-    ap.add_argument("--root", default=".", help="스크립트 기준 루트 경로")
-    ap.add_argument("--source", default="source", help="사람 폴더들을 담은 상위 폴더(경로/이름)")
-    ap.add_argument("--fps", type=int, default=DEFAULT_FPS, help="프레임 추출 FPS (기본 30)")
-    ap.add_argument("--crop", default=DEFAULT_CROP, help="ffmpeg crop 필터 문자열")
-    ap.add_argument("--video-ext", default=",".join(DEFAULT_VID_EXTS), help="처리할 동영상 확장자 콤마구분(.mp4,.mov)")
-    ap.add_argument("--skip-existing", action="store_true", help="이미 _speed_time.xlsx가 있으면 해당 영상은 건너뜀")
+    ap = argparse.ArgumentParser(description="ffmpeg 추출 → 분류 → 엑셀 내보내기")
+    ap.add_argument("--root", "-r", default=".", help="스크립트 기준 루트 경로")
+    ap.add_argument("--source", "-s", default="source", help="사람 폴더들을 담은 상위 폴더(경로/이름)")
+    ap.add_argument("--fps", "-f", type=int, default=DEFAULT_FPS, help="프레임 추출 FPS (기본 30)")
+    ap.add_argument("--crop", "-c", default=DEFAULT_CROP, help="ffmpeg crop 필터 문자열")
+    ap.add_argument("--video-ext", "-v", default=",".join(DEFAULT_VID_EXTS), help="처리할 동영상 확장자 콤마구분(.mp4,.mov)")
+    ap.add_argument("--skip-existing", "-x", action="store_true", help="이미 _speed_time.xlsx가 있으면 해당 영상은 건너뜀")
+
+    # classify_sevenseg 관련 옵션
+    ap.add_argument("--overlay", "-o", action="store_true", help="인식 결과 오버레이 이미지 저장 (classify_sevenseg.py)")
+
+    # export_speed_to_excel 관련 옵션
+    ap.add_argument("--debug", "-d", action="store_true", help="디버그 출력 (export_speed_to_excel.py)")
+    ap.add_argument("--all-cols", "-a", action="store_true", help="모든 컬럼 표시 (num_digits, preds 등 포함)")
+
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -188,19 +194,39 @@ def main():
 
     for v in bar:
         try:
-            # 스킵 조건: 결과 존재
-            out_xlsx = v.parent / v.stem / "_speed_time.xlsx"
+            work_dir = v.parent / v.stem
+            cls_csv = work_dir / "_cls_result.csv"
+            out_xlsx = work_dir / "_speed_time.xlsx"
+
+            # --- 스킵 조건 ---
             if args.skip_existing and out_xlsx.exists():
                 if tqdm: bar.set_postfix_str(f"skip:{v.name}")
                 results.append((v, out_xlsx, "skipped"))
                 continue
 
+            # --- export-only 조건 ---
+            if cls_csv.exists() and not out_xlsx.exists():
+                if tqdm: bar.set_postfix_str(f"export_only:{v.name}")
+                xlsx = export_excel(cls_csv, cls_csv.parent, args.fps)
+                results.append((v, xlsx, "ok-export-only"))
+                if tqdm: bar.set_postfix_str(f"ok-export-only:{v.name}")
+                continue
+
+            # --- 기본 전체 파이프라인 실행 ---
             if tqdm: bar.set_postfix_str(f"ffmpeg:{v.name}")
-            xlsx = process_video(v, crop=args.crop, fps=args.fps)
+            xlsx = process_video(
+                v,
+                crop=args.crop,
+                fps=args.fps,
+                overlay=args.overlay,
+                debug=args.debug,
+                all_cols=args.all_cols,
+            )
             results.append((v, xlsx, "ok"))
             if tqdm: bar.set_postfix_str(f"ok:{v.name}")
+
         except Exception as e:
-            results.append((v, None, f"error:{e}") )
+            results.append((v, None, f"error:{e}"))
             if tqdm:
                 bar.set_postfix_str(f"err:{v.name}")
             else:
