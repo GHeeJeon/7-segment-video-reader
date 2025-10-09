@@ -55,14 +55,13 @@
 For Mac : `python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`  
 For Windows : `python -m venv .venv` `.venv\Scripts\Activate.ps1` `pip install -r requirements.txt`  
 
-## 어떻게 작동하냐면요...
+## 어떻게 작동하냐면요... [arguments](https://github.com/GHeeJeon/7-segment-video-reader/blob/main/arguments.md)
 1. 동영상을 30 fps 단위로 캡쳐해요. (`ffmpeg` 이용)
 2. 7-segment 형태의 숫자를 인식할 부분만 크롭해요. (City Car Driving 플레이 화면 기준이라 크롭 위치는 고정값)
 #### 1 ~ 2 번 Windows PowreShell
 ```shell
 ffmpeg -y -i ".\video.mp4" -vf "crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08,fps=30" -frame_pts 1 ".\frames30_pts\img_%010d.png"
 ```
-
 #### 1 ~ 2 번 MacOS Terminal
 ```shell
 ffmpeg -y -i "./video.mp4" -vf "crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08,fps=30" -frame_pts 1 "./frames30_pts/img_%010d.png"
@@ -75,11 +74,13 @@ python classify_sevenseg.py
 python3 classify_sevenseg.py
 ```
 5. `export_speed_to_excel.py`에서 내보낸 `.csv` 파일로 `.xlsx` 파일을 만들어요.
-#### 5번 다음의 명령어 중 하나를 사용해요!
+#### 5번 다음의 명령어 중 하나를 사용해요
 ```shell
 python export_speed_to_excel.py
 python3 export_speed_to_excel.py
 ```
+
+
 
 ## 동영상 개별 테스트 방법
 1. 프로젝트 루트 위치에서 파이썬 가상환경 세팅
