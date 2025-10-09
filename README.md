@@ -51,8 +51,7 @@
 ## 준비물
 1. ffmpeg (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
 2. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
-3. `frames30_pts` 라는 이름의 빈 폴더 (크롭한 이미지를 이 폴더에 저장)
-4. 파이썬 가상환경 세팅  
+3. 파이썬 가상환경 세팅  
 For Mac : `python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`  
 For Windows : `python -m venv .venv` `.venv\Scripts\Activate.ps1` `pip install -r requirements.txt`  
 
