@@ -325,12 +325,14 @@ def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
     return vis
 
 # ---------- 메인 ----------
-def main():
-    # 명령줄 인자 파싱
-    parser = argparse.ArgumentParser(description='7-segment 숫자 분류')
-    parser.add_argument('-o', '--overlay', action='store_true',
-                        help='인식 결과 오버레이 이미지 저장')
-    args = parser.parse_args()
+def main(overlay=None):
+    # 명령줄 인자 파싱 (직접 실행될 때만)
+    if overlay is None:
+        parser = argparse.ArgumentParser(description='7-segment 숫자 분류')
+        parser.add_argument('-o', '--overlay', action='store_true',
+                            help='인식 결과 오버레이 이미지 저장')
+        args = parser.parse_args()
+        overlay = args.overlay
 
     # overlay 활성화 시에만 폴더 생성
     if args.overlay:

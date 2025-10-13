@@ -45,33 +45,29 @@ def which_or_raise(exe: str) -> str:
 
 def find_videos(source_dir: Path, exts: Tuple[str, ...]) -> List[Path]:
     """
-    구조:
+    source 하위 모든 폴더를 재귀적으로 순회하며 동영상 파일 검색
+    예시:
       source/
         사람A/
-          1/ 2/ (3/ 4/ 있을 수도)
-            *.mp4, *.mov ...
+          1/
+            1-1/
+              video.mp4
+          2/
+            video.mov
         사람B/
-          1/ 2/
-            *.mp4 ...
+          video.mp4
     """
-    videos: List[Path] = []
     if not source_dir.is_dir():
         raise RuntimeError(f"source 폴더를 찾을 수 없습니다: {source_dir}")
 
-    for person_dir in sorted([p for p in source_dir.iterdir() if p.is_dir()]):
-        # 우선 1,2,3,4만 대상으로
-        numbered = [person_dir / d for d in ["1", "2", "3", "4"] if (person_dir / d).is_dir()]
-        # 없으면 사람 폴더 바로 하위의 모든 디렉터리를 대상으로(유연성)
-        if not numbered:
-            numbered = [p for p in person_dir.iterdir() if p.is_dir()]
+    videos: List[Path] = []
+    for root, _, files in os.walk(source_dir):
+        for f in files:
+            path = Path(root) / f
+            if path.suffix.lower() in exts:
+                videos.append(path)
 
-        for stage_dir in sorted(numbered):
-            for p in sorted(stage_dir.iterdir()):
-                if p.is_file() and p.suffix.lower() in exts:
-                    videos.append(p)
-
-    return videos
-
+    return sorted(videos)
 
 
 def run_ffmpeg(video: Path, frames_dir: Path, crop: str, fps: int) -> None:
@@ -108,9 +104,8 @@ def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> 
     cls.IN_DIR = str(frames_dir)
     cls.OUT_CSV = str(out_csv)
     cls.VIS_DIR = str(vis_dir)
-    cls.OVERLAY = overlay  # 인식 이미지 생성하는 argument 전달
-
-    cls.main()
+    
+    cls.main(overlay=overlay)
 
     if not out_csv.exists():
         raise RuntimeError(f"분류 CSV가 생성되지 않았습니다: {out_csv}")

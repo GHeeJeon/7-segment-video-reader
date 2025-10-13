@@ -147,10 +147,10 @@ def export_speed_xlsx(
     std_pop = float(np.sqrt(((spd - mean_spd) ** 2).mean())) if not spd.empty else float("nan")
     target_rmse = float(np.sqrt(((OVER_SPEED_KMH - spd) ** 2).mean())) if not spd.empty else float("nan")
 
-    # ---------------- 50~60km/h 구간 ----------------
-    mask_50_60 = (spd >= 50) & (spd <= 60)
-    time_50_60 = float(mask_50_60.sum() / float(fps))
-    ratio_50_60 = float((time_50_60 / total_time * 100)) if total_time > 0 else float("nan")
+    # ---------------- 40~60km/h 구간 ----------------
+    mask_40_60 = (spd >= 40) & (spd <= 60)
+    time_40_60 = float(mask_40_60.sum() / float(fps))
+    ratio_40_60 = float((time_40_60 / total_time * 100)) if total_time > 0 else float("nan")
 
     # ---------------- 급가속 / 급감속 ----------------
     delta_v_1s = spd - spd.shift(fps)
@@ -190,8 +190,8 @@ def export_speed_xlsx(
         "과속 구간(1초 이상 지속, >60)": sustained_segments,
         "급가속 횟수(Δv≥+10)": accel_segments,
         "급감속 횟수(Δv≤-10)": decel_segments,
-        "50~60km/h 주행 시간(s)": time_50_60,
-        "50~60km/h 비율(%)": ratio_50_60,
+        "50~60km/h 주행 시간(s)": time_40_60,
+        "50~60km/h 비율(%)": ratio_40_60,
     }])
 
     # ---------------- 메타 시트 ----------------
