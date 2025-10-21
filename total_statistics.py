@@ -21,8 +21,6 @@ def build_wide_table(order_list, xlsx_files):
     if first_key:
         first_row, _ = extract_stats(xlsx_files[first_key])
         num_stats = len(first_row)
-        print(f"   📊 통계 항목 개수: {num_stats}")
-        print(f"   📊 통계 항목명: {first_row[:3]}...")  # 처음 3개만 출력
     else:
         num_stats = 14  # 기본값
         print(f"   ⚠️  파일을 찾을 수 없어 기본값 사용: {num_stats}")
@@ -36,12 +34,9 @@ def build_wide_table(order_list, xlsx_files):
                 first_data_row.append(first_row[stat_idx])
             else:
                 first_data_row.append("")
-    
-    print(f"   📝 Row 1 길이: {len(first_data_row)}, 처음 5개: {first_data_row[:5]}")
-    
+        
     # Row 2: 실험 조건 (1-1, 2-1, 3-1, 4-1 반복)
     condition_row = [""] + order_list * num_stats
-    print(f"   📝 Row 2 길이: {len(condition_row)}, 처음 10개: {condition_row[:10]}")
     
     # Row 3: input 엑셀의 두 번째 row
     second_data_row = [""]
@@ -51,10 +46,7 @@ def build_wide_table(order_list, xlsx_files):
                 _, second_row = extract_stats(xlsx_files[key])
                 second_data_row.append(second_row[stat_idx])
             else:
-                second_data_row.append("")
-    
-    print(f"   📝 Row 3 길이: {len(second_data_row)}, 처음 5개: {second_data_row[:5]}")
-    
+                second_data_row.append("")    
     df = pd.DataFrame([first_data_row, condition_row, second_data_row])
     return df, num_stats
 
@@ -99,5 +91,3 @@ def process_subject(subject_path):
 for subject_dir in ROOT_DIR.iterdir():
     if subject_dir.is_dir():
         process_subject(subject_dir)
-
-print("🎉 전체 total_speed_statistics.xlsx 생성 완료")
