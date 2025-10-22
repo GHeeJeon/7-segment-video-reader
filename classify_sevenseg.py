@@ -335,7 +335,7 @@ def main(overlay=None):
         overlay = args.overlay
 
     # overlay 활성화 시에만 폴더 생성
-    if args.overlay:
+    if overlay:
         os.makedirs(VIS_DIR, exist_ok=True)
 
     patterns = ("*.[Pp][Nn][Gg]", "*.[Jj][Pp][Gg]", "*.[Jj][Pp][Ee][Gg]")
@@ -395,7 +395,7 @@ def main(overlay=None):
             pred_number = tens_pred * 10 + ones_pred
 
         # 6) 시각화 저장 (옵션이 활성화된 경우에만)
-        if args.overlay:
+        if overlay:
             vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
             cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
 
@@ -411,7 +411,7 @@ def main(overlay=None):
     with open(OUT_CSV, "w", encoding="utf-8") as f:
         f.writelines(rows)
     
-    if args.overlay:
+    if overlay:
         print(f"완료: {ok}장 분류 → {OUT_CSV} / 오버레이: {VIS_DIR}")
     else:
         print(f"완료: {ok}장 분류 → {OUT_CSV}")
