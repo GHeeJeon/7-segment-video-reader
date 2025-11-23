@@ -77,8 +77,17 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 
 3. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
 4. 파이썬 가상환경 세팅  
-For Mac : `python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`  
-For Windows : `python -m venv .venv` `.venv\Scripts\Activate.ps1` `pip install -r requirements.txt`  
+For Mac
+`python3 -m venv .venv`  
+`source .venv/bin/activate`  
+`pip install -r requirements.txt`
+
+</br>
+
+For Windows
+`python -m venv .venv`  
+`.venv\Scripts\Activate.ps1`  
+`pip install -r requirements.txt`  
 
 ## 어떻게 사용하냐면요... 
 1. `source/[플레이어 이름]/[번호]/` 위치에 시뮬레이션 플레이 영상을 **하나씩** 추가해요
@@ -114,8 +123,18 @@ python3 run_all.py
 ![Oct-10-2025 01-19-15](https://github.com/user-attachments/assets/1c2eec9c-6abe-4bbc-8226-b00228ddb86a)
 
 
-## run_all.py 를 실행하면요...
+## `run_all.py` 를 실행하면요...
 1. 동영상의 **좌측 상단 속력 UI** 부분을 크롭해, 지정된 **프레임 단위로 캡쳐**해요 (기본 `30fps`)
 2. 캡쳐한 이미지를 `source/[플레이어 이름]/[번호]/[동영상 이름]/frames30_pts` 위치에 저장해요
 3. `frames30_pts` 폴더 속 이미지에서 **7-segment 형태의 숫자를 추출**해 `_cls_result.csv` 로 저장해요
 4. `_cls_result.csv` 데이터를 바탕으로 통계를 계산해 `_speed_time.xlsx` 로 저장해요
+
+</br>
+
+## 추가기능: `run_all.py` 실행 완료 후 전체 요약 통계 추출하기
+`run_all.py`로 `_speed_time.xlsx` 를 생성한 후에...
+1. 프로젝트 최상단 디렉토리에서 다음의 명령어 중 하나를 실행해요
+```shell
+python total_statistics.py
+python3 total_statistics.py
+```
