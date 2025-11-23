@@ -49,9 +49,34 @@
 
 
 ## 준비물
-1. ffmpeg (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
-2. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
-3. 파이썬 가상환경 세팅  
+1. **ffmpeg** (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
+
+</br>
+
+**For Mac : `brew install ffmpeg`**  
+macOS 용 패키지 관리자 `Homebrew` 가 없다면?  
+- 터미널에서 다음의 명령어 실행 후 `ffmpeg` 설치
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+- `ffmpeg` 를 입력했을 때 버전 등의 정보가 출력되면 설치 성공
+
+</br>
+
+**For Windows : `choco install ffmpeg`**  
+Windows 용 커맨드 라인 패키지 매니저 `Chocolatey` 가 없다면?  
+다음의 절차 진행 후  `ffmpeg` 설치  
+- **관리자 권한** 으로 PowerShell 실행하기  
+- 다음의 명령어 실행하기  
+```bash
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+```
+- `choco` 를 입력하여 버전이 나오면 설치 성공
+
+</br>
+
+3. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
+4. 파이썬 가상환경 세팅  
 For Mac : `python3 -m venv .venv` `source .venv/bin/activate` `pip install -r requirements.txt`  
 For Windows : `python -m venv .venv` `.venv\Scripts\Activate.ps1` `pip install -r requirements.txt`  
 
