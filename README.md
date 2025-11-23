@@ -138,3 +138,4 @@ python3 run_all.py
 python total_statistics.py
 python3 total_statistics.py
 ```
+2. `total_speed_statistics.xlsx` 파일이 생성되었어요
