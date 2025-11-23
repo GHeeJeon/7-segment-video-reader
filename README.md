@@ -55,10 +55,11 @@
 
 **For Mac : `brew install ffmpeg`**  
 macOS 용 패키지 관리자 `Homebrew` 가 없다면?  
-- 터미널에서 다음의 명령어 실행 후 `ffmpeg` 설치
+- 터미널에서 다음의 명령어 실행 (Homebrew 설치)
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
+- `brew install ffmpeg` 으로 `ffmpeg` 설치
 - `ffmpeg` 를 입력했을 때 버전 등의 정보가 출력되면 설치 성공
 
 </br>
@@ -72,6 +73,7 @@ Windows 용 커맨드 라인 패키지 매니저 `Chocolatey` 가 없다면?
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 ```
 - `choco` 를 입력하여 버전이 나오면 설치 성공
+- `choco install ffmpeg` 으로 `ffmpeg` 설치
 
 </br>
 
