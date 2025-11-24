@@ -47,9 +47,10 @@
 </div>
 </details>
 
+</br>
 
 ## 준비물
-1. **ffmpeg** (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
+### 1. **ffmpeg** (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
 
 </br>
 
@@ -77,19 +78,21 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 
 </br>
 
-3. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
-4. 파이썬 가상환경 세팅  
-For Mac
+### 2. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
+### 3. 파이썬 가상환경 세팅  
+**For Mac**
 `python3 -m venv .venv`  
 `source .venv/bin/activate`  
 `pip install -r requirements.txt`
 
 </br>
 
-For Windows
+**For Windows**
 `python -m venv .venv`  
 `.venv\Scripts\Activate.ps1`  
 `pip install -r requirements.txt`  
+
+</br>
 
 ## 어떻게 사용하냐면요... 
 1. `source/[플레이어 이름]/[번호]/` 위치에 시뮬레이션 플레이 영상을 **하나씩** 추가해요
@@ -124,6 +127,7 @@ python3 run_all.py
 
 ![Oct-10-2025 01-19-15](https://github.com/user-attachments/assets/1c2eec9c-6abe-4bbc-8226-b00228ddb86a)
 
+</br>
 
 ## `run_all.py` 를 실행하면요...
 1. 동영상의 **좌측 상단 속력 UI** 부분을 크롭해, 지정된 **프레임 단위로 캡쳐**해요 (기본 `30fps`)
