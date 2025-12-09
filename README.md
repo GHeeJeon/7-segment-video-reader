@@ -3,49 +3,63 @@
 
 [City Car Driving - 시뮬레이션 게임](https://store.steampowered.com/app/493490/City_Car_Driving/?l=koreana) 
 <details>
-<summary> (클릭) 위 시뮬레이션 플레이 영상을 기반으로 </summary>
+<summary> 시뮬레이션 플레이 영상을 기반으로 </summary>
 <div markdown="1">  
 
 </br>
   
+<!-- <img width="3360" height="2100" alt="490101310-a9d8fe30-939d-44aa-9070-4f70b6636482" src="https://github.com/user-attachments/assets/842c1c83-d408-44dd-803d-63e7a46efb42" /> -->
+
+</div>
+</details>
+
 <img width="3360" height="2100" alt="490101310-a9d8fe30-939d-44aa-9070-4f70b6636482" src="https://github.com/user-attachments/assets/842c1c83-d408-44dd-803d-63e7a46efb42" />
 
-</div>
-</details>
-
+</br></br>
 
 <details>
-<summary> (클릭) 위치가 고정된 속력 UI(좌측 상단) 를 30fps 단위로 크롭해서 </summary>
+<summary> 위치가 고정된 속력 UI(좌측 상단) 를 30fps 단위로 크롭해서 </summary>
 <div markdown="1">
 
 </br>
   
+<!-- <img width="2516" height="1532" alt="490106400-cd0db321-2237-49b6-88d7-8d8fcbce5ed3" src="https://github.com/user-attachments/assets/96df607a-2f82-49af-9cb4-4e7e067f7e94" /> -->
+
+</div>
+</details>
+
 <img width="2516" height="1532" alt="490106400-cd0db321-2237-49b6-88d7-8d8fcbce5ed3" src="https://github.com/user-attachments/assets/96df607a-2f82-49af-9cb4-4e7e067f7e94" />
 
-</div>
-</details>
+</br></br>
 
 <details>
-<summary> (클릭) 크롭한 이미지 속 속력, 7-segment 형태의 숫자를 인식하고 </summary>
+<summary> 크롭한 이미지 속 속력, 7-segment 형태의 숫자를 인식하고 </summary>
 <div markdown="1">
 
 </br>
   
+<!-- <img width="2512" height="1516" alt="490106936-96327d78-621b-427b-81b5-ee9a113dcef9" src="https://github.com/user-attachments/assets/cc15ba2f-4b8a-4837-8010-de4a094806b8" /> -->
+
+</div>
+</details>
+
 <img width="2512" height="1516" alt="490106936-96327d78-621b-427b-81b5-ee9a113dcef9" src="https://github.com/user-attachments/assets/cc15ba2f-4b8a-4837-8010-de4a094806b8" />
 
-</div>
-</details>
+</br></br>
 
 <details>
-<summary> (클릭) 자동차의 속력과 통계 데이터를 .xlsx 파일로 저장하는 프로그램입니다. </summary>
+<summary> 자동차의 속력과 통계 데이터를 .xlsx 파일로 저장하는 프로그램입니다. </summary>
 <div markdown="1">
 
 </br>
   
-<img width="3136" height="1474" alt="490119725-d0335327-1fe9-49a1-9ec1-89ec7a05c588" src="https://github.com/user-attachments/assets/4c1d2808-e8ee-48df-8fbb-f36ffbf33d8d" />
+<!-- <img width="3136" height="1474" alt="490119725-d0335327-1fe9-49a1-9ec1-89ec7a05c588" src="https://github.com/user-attachments/assets/4c1d2808-e8ee-48df-8fbb-f36ffbf33d8d" /> -->
 
 </div>
 </details>
+
+<img width="3136" height="1474" alt="490119725-d0335327-1fe9-49a1-9ec1-89ec7a05c588" src="https://github.com/user-attachments/assets/4c1d2808-e8ee-48df-8fbb-f36ffbf33d8d" />
+
 
 </br>
 
