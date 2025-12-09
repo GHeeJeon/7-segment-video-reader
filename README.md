@@ -1,3 +1,7 @@
+<p align='center'>
+    <img src="https://capsule-render.vercel.app/api?type=speech&height=300&color=gradient&customColorList=0,2,2,5,5&text=정확도%2099.98%25%20달성&section=header&reversal=false&desc=총%20416만%20프레임%20중%20오류율%200.02%25&descAlignY=65&animation=blink&fontAlignY=45&fontSize=85"/>
+</p>
+
 # 7-segment-video-reader
 ### 저도 영상 인식 처리는 처음 해보는데요...  
 
