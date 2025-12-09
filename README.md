@@ -81,7 +81,6 @@ macOS 용 패키지 관리자 `Homebrew` 가 없다면?
 
 **For Windows : `choco install ffmpeg`**  
 Windows 용 커맨드 라인 패키지 매니저 `Chocolatey` 가 없다면?  
-다음의 절차 진행 후  `ffmpeg` 설치  
 - **관리자 권한** 으로 PowerShell 실행하기  
 - 다음의 명령어 실행하기  
 ```bash
