@@ -97,6 +97,11 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 
 ### 2. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
 ### 3. 파이썬 가상환경 세팅  
+현재 프로젝트의 위치에서 다음의 명령어를 실행해요  
+`Visual Studio Code` 프로그램을 활용하면 편해요  
+
+</br>
+
 **For Mac**
 `python3 -m venv .venv`  
 `source .venv/bin/activate`  
@@ -146,7 +151,7 @@ python3 run_all.py
 
 </br>
 
-## `run_all.py` 를 실행하면요...
+## ⏳ `run_all.py` 를 실행하면요...
 1. 동영상의 **좌측 상단 속력 UI** 부분을 크롭해, 지정된 **프레임 단위로 캡쳐**해요 (기본 `30fps`)
 2. 캡쳐한 이미지를 `source/[플레이어 이름]/[번호]/[동영상 이름]/frames30_pts` 위치에 저장해요
 3. `frames30_pts` 폴더 속 이미지에서 **7-segment 형태의 숫자를 추출**해 `_cls_result.csv` 로 저장해요
@@ -171,8 +176,17 @@ python3 total_statistics.py
 ```shell
 error:'utf-8' codec can't decode byte 0xbf in position 57604: invalid start byte
 ```
-### 무슨 뜻이냐면요...
+### 간단히 말하자면...
+한글을 읽을 수 없대요!
 
 ### 원인
+`_cls_result.csv` 를 엑셀로 열어 수정했나요?
+(사진)
+사진과 같이, 숫자가 날짜 포맷으로 자동 저장된 셀이 있나요?  
+**한글이 있으면 안되는 셀에 한글이 있진 않나요?**
 
 ### 해결방법
+**날짜 포맷 자동 저장을** 막아야 해요  
+두 가지 중 한 가지 방법을 선택해주세요  
+1. 입력할 셀(들)을 선택한 후 홈 탭에서 **표시형식을 `일반` 에서 `텍스트` 로 변경**
+2. `_cls_result.csv` 를 **메모장으로 열어 수정 후 저장**
