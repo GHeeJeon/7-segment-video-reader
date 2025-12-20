@@ -173,11 +173,6 @@ python3 run_all.py
 </br>
 
 ### 오류 값 수정 및 추출 재시도가 필요하다면...
-<sub> 0. 1번 ~ 3번 과정이 너무 어렵다면, 모든 `_cls_result.csv` 와 `_speed_time.xlsx` 를 삭제하고 다시 시작해요 (단순하지만 오래 걸려요) </sub>
-```shell
-python run_all.py
-python3 run_all.py
-```
 1. `_cls_result.csv` 내 오류 값을 수정 후 저장해요
 2. 1번에 해당하는 `_speed_time.xlsx` 이 존재한다면, 삭제해요
 3. `-x` 옵션을 추가해 정상적으로 완료된 단계를 스킵하고, `_speed_time.xlsx` 를 다시 생성해요
