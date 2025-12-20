@@ -172,7 +172,7 @@ python3 total_statistics.py
 </br>
 
 ## ❗️오류가 발생했어요!
-`run_all.py` 실행 시 다음과 같은 오류가 발생해요  
+`run_all.py` 실행 시 다음과 같은 오류가 발생했나요?  
 ```shell
 error:'utf-8' codec can't decode byte 0xbf in position 57604: invalid start byte
 ```
