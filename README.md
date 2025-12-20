@@ -2,8 +2,8 @@
     <img src="https://capsule-render.vercel.app/api?type=speech&height=300&color=gradient&customColorList=0,2,2,5,5&text=🎉정확도%2099.98%25%20달성🎉&section=header&reversal=false&desc=총%20416만%20프레임%20중%20오류율%200.02%25&descAlignY=65&animation=blink&fontAlignY=45&fontSize=80"/>
 </p>
 
-# 7-segment-video-reader
-### 저도 영상 인식 처리는 처음 해보는데요...  
+# 🏎️ 7-segment-video-reader
+### 🤔 저도 영상 인식 처리는 처음 해보는데요...  
 
 [City Car Driving - 시뮬레이션 게임](https://store.steampowered.com/app/493490/City_Car_Driving/?l=koreana) 
 <details>
@@ -67,7 +67,7 @@
 
 </br>
 
-## 준비물
+## ✏️ 준비물
 ### 1. **ffmpeg** (윈도우는 `choco`로, 맥에서는 `brew` 로 설치)
 
 </br>
@@ -111,7 +111,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 
 </br>
 
-## 어떻게 사용하냐면요... 
+## 💻 어떻게 사용하냐면요... 
 1. `source/[플레이어 이름]/[번호]/` 위치에 시뮬레이션 플레이 영상을 **하나씩** 추가해요
 
 </br>
@@ -154,7 +154,8 @@ python3 run_all.py
 
 </br>
 
-## 추가기능: `run_all.py` 실행 완료 후 전체 요약 통계 추출하기
+## 💡 추가기능
+### `run_all.py` 실행 완료 후 전체 요약 통계 추출하기
 `run_all.py`로 `_speed_time.xlsx` 를 생성한 후에...
 1. 프로젝트 최상단 디렉토리에서 다음의 명령어 중 하나를 실행해요
 ```shell
@@ -162,3 +163,16 @@ python total_statistics.py
 python3 total_statistics.py
 ```
 2. `total_speed_statistics.xlsx` 파일이 생성되었어요
+
+</br>
+
+## ❗️오류가 발생했어요!
+`run_all.py` 실행 시 다음과 같은 오류가 발생해요  
+```shell
+error:'utf-8' codec can't decode byte 0xbf in position 57604: invalid start byte
+```
+### 무슨 뜻이냐면요...
+
+### 원인
+
+### 해결방법
