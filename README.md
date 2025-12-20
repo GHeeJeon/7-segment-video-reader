@@ -7,7 +7,7 @@
 
 [City Car Driving - 시뮬레이션 게임](https://store.steampowered.com/app/493490/City_Car_Driving/?l=koreana) 
 <details>
-<summary> 시뮬레이션 플레이 영상을 기반으로 </summary>
+<summary> 시뮬레이션 플레이 영상(Steam 화면녹화 기준)을 기반으로 </summary>
 <div markdown="1">  
 
 </br>
@@ -98,7 +98,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 ### 2. 시뮬레이션 플레이 영상 (파일명은 자유, 형식은 `.mp4` 권장)
 ### 3. 파이썬 가상환경 세팅  
 현재 프로젝트의 위치에서 다음의 명령어를 실행해요  
-`Visual Studio Code` 프로그램을 활용하면 편해요  
+`Visual Studio Code` 터미널 기능을 활용하면 편해요  
 
 </br>
 
@@ -159,15 +159,41 @@ python3 run_all.py
 
 </br>
 
-## 💡 추가기능
-### `run_all.py` 실행 완료 후 전체 요약 통계 추출하기
-`run_all.py`로 `_speed_time.xlsx` 를 생성한 후에...  
-1. 프로젝트 최상단 디렉토리에서 다음의 명령어 중 하나를 실행해요
+## ⚠️ 주의! 추출 후 검토가 필요해요
+오류 인식이 1건도 없는 **완벽한 숫자 추출은 힘들어요.**  
+1초에 30 프레임 단위로 빠르게 영상을 캡쳐해  
+**속력이 바뀌는 순간** 캡쳐되는 경우가 있어요.  
+
+</br>
+
+![486520410-2fb5ba14-eee7-4a5a-969c-511d7c0149ac](https://github.com/user-attachments/assets/b2a2e1ab-daab-4807-927a-5a5cd5f30de1)
+![486520413-c9d7d4f6-b78e-42a6-acf2-96388cf84259](https://github.com/user-attachments/assets/6779e94c-2431-4434-979e-8699677c0dc5)
+(예: 22와 23의 중첩상태)  
+
+</br>
+
+### 오류 값 수정 및 추출 재시도가 필요하다면...
+<sub> 0. 1번 ~ 3번 과정이 너무 어렵다면, 모든 `_cls_result.csv` 와 `_speed_time.xlsx` 를 삭제하고 다시 시작해요 (단순하지만 오래 걸려요) </sub>
 ```shell
-python total_statistics.py
-python3 total_statistics.py
+python run_all.py
+python3 run_all.py
 ```
-2. `total_speed_statistics.xlsx` 파일이 생성되었어요
+1. `_cls_result.csv` 내 오류 값을 수정 후 저장해요
+2. 1번에 해당하는 `_speed_time.xlsx` 이 존재한다면, 삭제해요
+3. `-x` 옵션을 추가해 정상적으로 완료된 단계를 스킵하고, `_speed_time.xlsx` 를 다시 생성해요
+```shell
+python run_all.py -x 
+python3 run_all.py -x 
+```
+
+</br>
+
+초당 캡쳐하는 프레임 수를 줄이면 정확도를 올릴 수 있어요.  
+`-f` 옵션을 추가해 변경할 수 있어요.  
+```shell
+python run_all.py -f 20
+python3 run_all.py -f 20
+```
 
 </br>
 
@@ -180,15 +206,29 @@ error:'utf-8' codec can't decode byte 0xbf in position 57604: invalid start byte
 한글을 읽을 수 없대요!
 
 ### 원인
-`_cls_result.csv` 를 엑셀로 열어 수정했나요?  
+`_cls_result.csv` 를 엑셀로 열어 직접 수정했나요?  
 
 ![2025-12-12_1 10 03](https://github.com/user-attachments/assets/6bdb5f21-157f-4c38-b029-b6c8192f4eab)
 
 사진과 같이, 숫자가 날짜 포맷으로 자동 저장된 셀이 있나요?  
 **한글이 있으면 안되는 셀에 한글이 있진 않나요?**
 
-### 해결방법
+### 해결 방법
 **날짜 포맷 자동 저장을** 막아야 해요  
-두 가지 중 한 가지 방법을 선택해주세요  
+두 가지 중 한 가지 방법을 선택해 적용해요  
 1. 입력할 셀(들)을 선택한 후 홈 탭에서 **표시형식을 `일반` 에서 `텍스트` 로 변경**
 2. `_cls_result.csv` 를 **메모장으로 열어 수정 후 저장**
+
+</br>
+
+## 💡 추가 기능
+### `run_all.py` 실행 완료 후 전체 요약 통계 추출하기
+`run_all.py`로 `_speed_time.xlsx` 를 생성한 후에...  
+1. 프로젝트 최상단 디렉토리에서 다음의 명령어 중 하나를 실행해요
+```shell
+python total_statistics.py
+python3 total_statistics.py
+```
+2. `total_speed_statistics.xlsx` 파일이 생성되었어요
+
+</br>
