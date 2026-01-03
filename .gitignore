@@ -1,5 +1,8 @@
 .venv
+.vscode
 frames30_pts
+frames30_pts_steer
+steering_analysis_30fps
 _cls_overlay
 *.xlsx
 *.csv

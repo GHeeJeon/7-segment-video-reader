@@ -33,6 +33,7 @@ except Exception:
 DEFAULT_FPS = 30
 DEFAULT_CROP = "crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08"
 DEFAULT_VID_EXTS = (".mp4",)  # 쉼표로 추가 가능
+ROI_STEER = (1015, 945, 1075, 965)  # (x1, y1, x2, y2)
 
 # --------------------------- 유틸 ---------------------------
 
@@ -128,25 +129,37 @@ def export_excel(cls_csv: Path, frames_dir: Path, fps: int, debug: bool = False,
         raise RuntimeError(f"엑셀 파일이 생성되지 않았습니다: {out_xlsx}")
     return out_xlsx
 
+def roi_to_crop(roi: Tuple[int, int, int, int]) -> str:
+    x1, y1, x2, y2 = roi
+    w = x2 - x1
+    h = y2 - y1
+    return f"crop={w}:{h}:{x1}:{y1}"
+
 # --------------------------- 메인 파이프라인 ---------------------------
 
 def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, all_cols: bool) -> Path:
     parent = video.parent
     stem = video.stem
     work_dir = parent / stem
-    frames_dir = work_dir / "frames30_pts"
 
-    # 1) ffmpeg 추출
+    # 1) 속력 UI 프레임
+    frames_dir = work_dir / "frames30_pts"
     run_ffmpeg(video, frames_dir, crop=crop, fps=fps)
 
-    # 2) 분류 (overlay 플래그 전달)
-    cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)
+    # 2) 핸들 UI 프레임 (추가)
+    steer_crop = roi_to_crop(ROI_STEER)
+    steer_frames_dir = work_dir / "frames30_pts_steer"
+    if steer_frames_dir.exists() and any(steer_frames_dir.glob("img_*.png")):
+        pass  # 이미 있으면 skip
+    else:
+        run_ffmpeg(video, steer_frames_dir, crop=steer_crop, fps=fps)
 
-    # 3) 엑셀 내보내기 (debug, all-cols 플래그 전달)
-    xlsx = export_excel(cls_csv, frames_dir, fps=fps, debug=debug, all_cols=all_cols)
+    # 3) 기존 분류 & 엑셀 (속력 프레임 기준)
+    cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)
+    xlsx = export_excel(cls_csv, frames_dir, fps=fps,
+                        debug=debug, all_cols=all_cols)
 
     return xlsx
-
 
 def main():
     import argparse

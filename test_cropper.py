@@ -2,39 +2,51 @@ import cv2
 import os
 import numpy as np
 
-# ==========================================
-# 1. 환경 설정 및 보정값 적용
-# ==========================================
 VIDEO_PATH = "./source/sample_name/1/1-1.mp4"
-SAVE_DIR = "./steering_analysis_30fps" 
-# 30fps 추출을 위해 간격을 1프레임으로 설정 (영상 자체가 30fps 기준일 때)
-# 만약 영상이 60fps라면 2로 설정하여 30fps 효과를 낼 수 있습니다.
-FRAME_INTERVAL = 1 
+SAVE_DIR = "./steering_analysis_30fps"
+FRAME_INTERVAL = 1
 
-ROI_STEER = (942, 965, 1015, 1075)
+ROI_STEER_PX = (1015, 945, 1075, 965)  # (x1, y1, x2, y2)
 
-# 피드백 반영 보정값
-ZERO_CENTER_X = 29  # 기존 30에서 왼쪽으로 1px 이동 (-1)
-X_POINT_BIAS = 3    # 노란 점(감지점)을 오른쪽으로 3px 보정 (+3)
-TOLERANCE = 6       # '0' 상태 판정 허용 범위
+ZERO_CENTER_X = 29
+X_POINT_BIAS = 3
+TOLERANCE = 6
 
-# ==========================================
-# 2. 초기화
-# ==========================================
 os.makedirs(SAVE_DIR, exist_ok=True)
 cap = cv2.VideoCapture(VIDEO_PATH)
 
 if not cap.isOpened():
     print(f"오류: 영상을 불러올 수 없습니다: {VIDEO_PATH}")
-    exit()
+    raise SystemExit(1)
 
 fps = cap.get(cv2.CAP_PROP_FPS)
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 print(f"영상 원본 FPS: {fps} | 총 프레임: {total_frames}")
 
-# ==========================================
-# 3. 전체 프레임 분석 루프 (30fps 단위)
-# ==========================================
+# ✅ 첫 프레임으로 해상도 확보 + ROI 비율 계산
+ret, first = cap.read()
+if not ret:
+    print("오류: 첫 프레임을 읽지 못했습니다.")
+    raise SystemExit(1)
+
+ih, iw = first.shape[:2]
+x1, y1, x2, y2 = ROI_STEER_PX
+w = x2 - x1
+h = y2 - y1
+
+# 정규화(비율) 값
+x_ratio = x1 / iw
+y_ratio = y1 / ih
+w_ratio = w / iw
+h_ratio = h / ih
+
+print(f"해상도: iw={iw}, ih={ih}")
+print(f"ROI_STEER 비율: x={x_ratio:.8f}, y={y_ratio:.8f}, w={w_ratio:.8f}, h={h_ratio:.8f}")
+print(f"ffmpeg crop 예시: crop=iw*{w_ratio:.8f}:ih*{h_ratio:.8f}:iw*{x_ratio:.8f}:ih*{y_ratio:.8f}")
+
+# ✅ 다시 처음부터 읽기 위해 되감기
+cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
 frame_idx = 0
 analyzed_count = 0
 
@@ -43,27 +55,31 @@ while True:
     if not ret:
         break
 
-    # 설정한 프레임 간격마다 분석 수행
     if frame_idx % FRAME_INTERVAL == 0:
-        # [A] ROI 크롭
-        y1, y2, x1, x2 = ROI_STEER
-        steer_crop = frame[y1:y2, x1:x2].copy()
-        h, w = steer_crop.shape[:2]
+        ih, iw = frame.shape[:2]
 
-        # [B] 인디케이터 위치 감지 및 보정 적용
+        # ✅ 비율 → 픽셀 ROI로 환산 (매 프레임 동일 해상도면 항상 같은 값)
+        x1p = int(round(iw * x_ratio))
+        y1p = int(round(ih * y_ratio))
+        wp  = int(round(iw * w_ratio))
+        hp  = int(round(ih * h_ratio))
+        x2p = x1p + wp
+        y2p = y1p + hp
+
+        steer_crop = frame[y1p:y2p, x1p:x2p].copy()
+        h_crop, w_crop = steer_crop.shape[:2]
+
         gray = cv2.cvtColor(steer_crop, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
-        
+
         M = cv2.moments(thresh)
         state = "N/A"
         cx_calibrated = -1
 
         if M["m00"] > 0:
-            # 원본 중심점에서 +3px 오른쪽으로 보정
             cx_raw = int(M["m10"] / M["m00"])
             cx_calibrated = cx_raw + X_POINT_BIAS
-            
-            # 보정된 좌표 기준 L / 0 / R 판별
+
             if cx_calibrated < (ZERO_CENTER_X - TOLERANCE):
                 state = "L"
             elif cx_calibrated > (ZERO_CENTER_X + TOLERANCE):
@@ -71,24 +87,20 @@ while True:
             else:
                 state = "0"
 
-        # [C] 30fps 결과 출력 (모든 이미지를 저장하면 용량이 크므로 콘솔 위주로 확인)
-        # 확인을 위해 1초(30프레임)마다 한 장씩만 샘플 저장
         if analyzed_count % 30 == 0:
             border_color = (0, 255, 0) if state == "0" else ((0, 0, 255) if state == "R" else (255, 0, 0))
             debug_img = cv2.copyMakeBorder(steer_crop, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=border_color)
-            
-            # 보정된 기준선(29px) 및 보정된 점 표시
-            cv2.line(debug_img, (ZERO_CENTER_X + 5, 0), (ZERO_CENTER_X + 5, h + 10), (255, 255, 255), 1)
+
+            cv2.line(debug_img, (ZERO_CENTER_X + 5, 0), (ZERO_CENTER_X + 5, h_crop + 10), (255, 255, 255), 1)
             if cx_calibrated != -1:
-                cv2.circle(debug_img, (cx_calibrated + 5, (h//2) + 5), 3, (0, 255, 255), -1)
+                cv2.circle(debug_img, (cx_calibrated + 5, (h_crop // 2) + 5), 3, (0, 255, 255), -1)
 
             cv2.imwrite(f"{SAVE_DIR}/sample_f{frame_idx}_{state}.png", debug_img)
-            print(f"Saving Sample -> Frame: {frame_idx} | State: {state}")
+            print(f"Saving Sample -> Frame: {frame_idx} | State: {state} | ROI(px)=({x1p},{y1p})~({x2p},{y2p})")
 
         analyzed_count += 1
 
     frame_idx += 1
-    # 진행 상황 출력
     if frame_idx % 300 == 0:
         print(f"진행 중... {frame_idx}/{total_frames} 프레임 처리 완료")
 
