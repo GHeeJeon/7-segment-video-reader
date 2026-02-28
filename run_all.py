@@ -33,7 +33,7 @@ except Exception:
 DEFAULT_FPS = 30
 DEFAULT_CROP = "crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08"
 DEFAULT_VID_EXTS = (".mp4",)  # 쉼표로 추가 가능
-ROI_STEER = (1015, 945, 1075, 965)  # (x1, y1, x2, y2)
+ROI_STEER = (1017, 945, 1075, 964)  # (x1, y1, x2, y2) — 58*19
 
 # --------------------------- 유틸 ---------------------------
 
@@ -112,6 +112,26 @@ def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> 
         raise RuntimeError(f"분류 CSV가 생성되지 않았습니다: {out_csv}")
     return out_csv
 
+
+def classify_steer_frames(frames_dir: Path, work_dir: Path, fps: int, overlay: bool = False) -> Path:
+    """classify_steering.py 모듈 실행 (frames30_pts_steer 입력)"""
+    import importlib
+    mod = importlib.import_module("classify_steering")
+
+    out_csv = work_dir / "_steer_result.csv"
+
+    # classify_steering exposes analyze_steering_frames(frames_dir, work_dir, fps, ...)
+    mod.analyze_steering_frames(
+        frames_dir=Path(frames_dir),
+        work_dir=Path(work_dir),
+        fps=float(fps),
+        overlay=overlay,
+    )
+
+    if not out_csv.exists():
+        raise RuntimeError(f"steer CSV가 생성되지 않았습니다: {out_csv}")
+    return out_csv
+
 def export_excel(cls_csv: Path, frames_dir: Path, fps: int, debug: bool = False, all_cols: bool = False) -> Path:
     """export_speed_to_excel.py 모듈 실행"""
     import importlib
@@ -153,6 +173,25 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
         pass  # 이미 있으면 skip
     else:
         run_ffmpeg(video, steer_frames_dir, crop=steer_crop, fps=fps)
+
+    # 2b) steer 분석 (선택적): frames30_pts_steer이 있으면 분류 실행
+    try:
+        # import here to avoid mandatory dependency unless used
+        if steer_frames_dir.exists() and any(steer_frames_dir.glob("img_*.png")):
+            # Attempt to import classify_steering module; if missing, skip with warning
+            try:
+                import importlib
+                importlib.import_module("classify_steering")
+                # run classifier, but don't fail the whole pipeline if steering fails
+                try:
+                    classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=False)
+                except Exception as e:
+                    print(f"[경고] steering 분석 중 오류: {e}")
+            except Exception:
+                # module not available — skip silently
+                pass
+    except Exception:
+        pass
 
     # 3) 기존 분류 & 엑셀 (속력 프레임 기준)
     cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)

@@ -2,11 +2,18 @@
 classify_steering.py
 
 frames30_pts_steer(이미 크롭된 핸들 UI 프레임들)을 입력으로 받아
-인디케이터의 중심점을 모멘트로 계산하고(L/0/R) 결과를 CSV로 저장합니다.
+픽셀 중심점을 steering 각도로 변환하여(±60도 범위, 0.5도 단위) CSV로 저장합니다.
+
+변환 원리:
+- 이미지 가로: 58픽셀 = -540도 ~ +540도 범위 (전체 1080도)
+- 중앙(0도): x = 27픽셀
+- 각도 = (픽셀 - 27) × (1080 / 58)
+- 양자화: 0.5도 단위
+- 필터: ±60도 범위만 유효
 
 - 입력: frames_dir (예: .../frames30_pts_steer)  # img_%010d.png
 - 출력:
-    - work_dir/_steer_result.csv
+    - work_dir/_steer_result.csv (컬럼: frame_idx, time_sec, cx_raw, angle_deg_raw, angle_deg_quantized_05, img_path)
     - (옵션) work_dir/_steer_overlay/  # 샘플 디버그 이미지
 
 요구 패키지: opencv-python, numpy
@@ -41,7 +48,7 @@ class SteeringConfig:
     thresh_max: int = 255
 
     # 상태 판정 파라미터 (크롭된 steer 이미지 좌표계 기준)
-    zero_center_x: int = 29   # 기준선 x (px)
+    zero_center_x: int = 26   # 기준선 x (px)
     x_point_bias: int = 3     # 감지점 x 보정 (+)
     tolerance: int = 6        # 0 판정 허용 범위
 
@@ -59,39 +66,59 @@ def _sorted_frame_paths(frames_dir: Path) -> List[Path]:
     return sorted(paths, key=key)
 
 
-def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int], Optional[int], str]:
-    """단일 steer 프레임 분석: (cx_raw, cx_calibrated, state) 반환"""
+def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int], Optional[float], Optional[float]]:
+    """단일 steer 프레임 분석: (cx_raw, steering_angle_deg, steering_angle_quantized) 반환
+    
+    픽셀-각도 변환:
+    - 이미지 가로 58픽셀 = -540도 ~ +540도 (전체 1080도)
+    - 중앙(0도) = x=27 픽셀
+    - 1픽셀 ≈ 18.62도
+    """
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, cfg.thresh_value, cfg.thresh_max, cv2.THRESH_BINARY)
 
     M = cv2.moments(thresh)
     if M["m00"] <= 0:
-        return None, None, "N/A"
+        return None, None, None
 
     cx_raw = int(M["m10"] / M["m00"])
-    cx_cal = cx_raw + cfg.x_point_bias
 
-    if cx_cal < (cfg.zero_center_x - cfg.tolerance):
-        state = "L"
-    elif cx_cal > (cfg.zero_center_x + cfg.tolerance):
-        state = "R"
-    else:
-        state = "0"
+    # 보정: 사용자가 지정한 x_point_bias(px)를 측정값에 적용
+    cx_corrected = cx_raw + cfg.x_point_bias
 
-    return cx_raw, cx_cal, state
+    # 픽셀을 각도로 변환
+    # 58픽셀이 1080도(±540도)를 나타냄
+    # 1픽셀 = 1080/58 ≈ 18.62도
+    # 각도 = (보정된 픽셀 - 중앙) × (1080 / 58)
+    degrees_per_pixel = 1080.0 / 58.0  # 약 18.62 도/픽셀
+    angle_deg = (cx_corrected - cfg.zero_center_x) * degrees_per_pixel
+
+    # 0.5도 단위로 양자화
+    angle_quantized = round(angle_deg / 0.5) * 0.5
+
+    # ±60도 범위 필터 (범위 초과 시 None으로 표시)
+    if abs(angle_quantized) > 60.0:
+        angle_quantized = None
+
+    return cx_raw, angle_deg, angle_quantized
 
 
-def _save_overlay(img_bgr: np.ndarray, cx_cal: Optional[int], state: str, cfg: SteeringConfig, out_path: Path) -> None:
+def _save_overlay(img_bgr: np.ndarray, cx_raw: Optional[int], angle_deg: Optional[float], cfg: SteeringConfig, out_path: Path) -> None:
     h, w = img_bgr.shape[:2]
 
-    if state == "0":
-        border_color = (0, 255, 0)
-    elif state == "R":
-        border_color = (0, 0, 255)
-    elif state == "L":
-        border_color = (255, 0, 0)
+    # 각도에 따라 색상 결정
+    if angle_deg is None:
+        border_color = (128, 128, 128)  # 회색: 감지 실패
+    elif angle_deg < -30:
+        border_color = (255, 0, 0)  # 파란색: 왼쪽 크게
+    elif angle_deg < 0:
+        border_color = (255, 165, 0)  # 청록색: 왼쪽
+    elif angle_deg == 0:
+        border_color = (0, 255, 0)  # 초록색: 중앙
+    elif angle_deg < 30:
+        border_color = (0, 165, 255)  # 주황색: 오른쪽
     else:
-        border_color = (128, 128, 128)
+        border_color = (0, 0, 255)  # 빨간색: 오른쪽 크게
 
     debug_img = cv2.copyMakeBorder(
         img_bgr,
@@ -100,13 +127,14 @@ def _save_overlay(img_bgr: np.ndarray, cx_cal: Optional[int], state: str, cfg: S
         value=border_color
     )
 
-    # 기준선 표시
+    # 기준선(0도) 표시
     x0 = cfg.zero_center_x + cfg.overlay_border
     cv2.line(debug_img, (x0, 0), (x0, h + cfg.overlay_border * 2), (255, 255, 255), 1)
 
-    # 감지점 표시
-    if cx_cal is not None:
-        cv2.circle(debug_img, (cx_cal + cfg.overlay_border, (h // 2) + cfg.overlay_border), 3, (0, 255, 255), -1)
+    # 감지점 표시: 측정값에 x_point_bias를 적용한 위치에 노란 점 표시
+    if cx_raw is not None:
+        cx_display = cx_raw + cfg.x_point_bias + cfg.overlay_border
+        cv2.circle(debug_img, (cx_display, (h // 2) + cfg.overlay_border), 2, (0, 255, 255), -1)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(out_path), debug_img)
@@ -119,7 +147,7 @@ def analyze_steering_frames(
     cfg: SteeringConfig = SteeringConfig(),
     overlay: bool = False,
 ) -> Path:
-    """frames_dir 내 img_*.png를 순회하며 steer 상태를 CSV로 저장하고 결과 CSV 경로를 반환"""
+    """frames_dir 내 img_*.png를 순회하며 steering 각도를 CSV로 저장하고 결과 CSV 경로를 반환"""
     frames_dir = frames_dir.resolve()
     work_dir = work_dir.resolve()
 
@@ -135,7 +163,7 @@ def analyze_steering_frames(
 
     with out_csv.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["frame_idx", "time_sec", "cx_raw", "cx_calibrated", "state", "img_path"])
+        w.writerow(["frame_idx", "time_sec", "cx_raw", "angle_deg_raw", "angle_deg_quantized_05", "img_path"])
 
         for i, p in enumerate(paths):
             img = cv2.imread(str(p), cv2.IMREAD_COLOR)
@@ -144,12 +172,18 @@ def analyze_steering_frames(
                 w.writerow([i, i / fps, "", "", "ERR_EMPTY", str(p)])
                 continue
 
-            cx_raw, cx_cal, state = _analyze_one(img, cfg)
-            w.writerow([i, i / fps, "" if cx_raw is None else cx_raw, "" if cx_cal is None else cx_cal, state, str(p)])
+            cx_raw, angle_deg, angle_quantized = _analyze_one(img, cfg)
+            
+            # CSV 행 작성
+            cx_raw_str = "" if cx_raw is None else cx_raw
+            angle_deg_str = "" if angle_deg is None else f"{angle_deg:.2f}"
+            angle_quantized_str = "" if angle_quantized is None else f"{angle_quantized:.1f}"
+            
+            w.writerow([i, f"{i / fps:.3f}", cx_raw_str, angle_deg_str, angle_quantized_str, str(p)])
 
             if overlay and (i % cfg.overlay_every_n == 0):
-                out_img = overlay_dir / f"sample_f{i:06d}_{state}.png"
-                _save_overlay(img, cx_cal, state, cfg, out_img)
+                out_img = overlay_dir / f"sample_f{i:06d}_{angle_quantized if angle_quantized is not None else 'null'}.png"
+                _save_overlay(img, cx_raw, angle_deg, cfg, out_img)
 
     return out_csv
 
