@@ -33,6 +33,7 @@ except Exception:
 DEFAULT_FPS = 30
 DEFAULT_CROP = "crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08"
 DEFAULT_VID_EXTS = (".mp4",)  # 쉼표로 추가 가능
+ROI_STEER = (1017, 945, 1075, 964)  # (x1, y1, x2, y2) — 58*19
 
 # --------------------------- 유틸 ---------------------------
 
@@ -111,7 +112,27 @@ def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> 
         raise RuntimeError(f"분류 CSV가 생성되지 않았습니다: {out_csv}")
     return out_csv
 
-def export_excel(cls_csv: Path, frames_dir: Path, fps: int, debug: bool = False, all_cols: bool = False) -> Path:
+
+def classify_steer_frames(frames_dir: Path, work_dir: Path, fps: int, overlay: bool = False) -> Path:
+    """classify_steering.py 모듈 실행 (frames30_pts_steer 입력)"""
+    import importlib
+    mod = importlib.import_module("classify_steering")
+
+    out_csv = work_dir / "_steer_result.csv"
+
+    # classify_steering exposes analyze_steering_frames(frames_dir, work_dir, fps, ...)
+    mod.analyze_steering_frames(
+        frames_dir=Path(frames_dir),
+        work_dir=Path(work_dir),
+        fps=float(fps),
+        overlay=overlay,
+    )
+
+    if not out_csv.exists():
+        raise RuntimeError(f"steer CSV가 생성되지 않았습니다: {out_csv}")
+    return out_csv
+
+def export_excel(cls_csv: Path, steer_csv: Path, frames_dir: Path, fps: int, debug: bool = False, all_cols: bool = False) -> Path:
     """export_speed_to_excel.py 모듈 실행"""
     import importlib
     ex = importlib.import_module("export_speed_to_excel")
@@ -123,10 +144,17 @@ def export_excel(cls_csv: Path, frames_dir: Path, fps: int, debug: bool = False,
         fps=fps,
         debug=debug,
         show_tech_cols=all_cols,
+        steer_csv_path=str(steer_csv) if steer_csv and steer_csv.exists() else None,
     )
     if not out_xlsx.exists():
         raise RuntimeError(f"엑셀 파일이 생성되지 않았습니다: {out_xlsx}")
     return out_xlsx
+
+def roi_to_crop(roi: Tuple[int, int, int, int]) -> str:
+    x1, y1, x2, y2 = roi
+    w = x2 - x1
+    h = y2 - y1
+    return f"crop={w}:{h}:{x1}:{y1}"
 
 # --------------------------- 메인 파이프라인 ---------------------------
 
@@ -134,19 +162,31 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
     parent = video.parent
     stem = video.stem
     work_dir = parent / stem
+
+    # 1) 핸들 UI 프레임 추출
+    steer_crop = roi_to_crop(ROI_STEER)
+    steer_frames_dir = work_dir / "frames30_pts_steer"
+    run_ffmpeg(video, steer_frames_dir, crop=steer_crop, fps=fps)
+
+    # 2) 속력 인식 분석 (classify_sevenseg.py)
+    #    우선 속력 프레임 추출이 선행되어야 함
     frames_dir = work_dir / "frames30_pts"
-
-    # 1) ffmpeg 추출
     run_ffmpeg(video, frames_dir, crop=crop, fps=fps)
-
-    # 2) 분류 (overlay 플래그 전달)
     cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)
 
-    # 3) 엑셀 내보내기 (debug, all-cols 플래그 전달)
-    xlsx = export_excel(cls_csv, frames_dir, fps=fps, debug=debug, all_cols=all_cols)
+    # 3) 핸들 각도 분석 (classify_steering.py)
+    steer_csv = work_dir / "_steer_result.csv"
+    try:
+        # run classifier
+        classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=overlay)
+    except Exception as e:
+        print(f"[경고] steering 분석 중 오류(무시하고 진행): {e}")
+
+    # 4) 엑셀 파일 내보내기 (export_speed_to_excel.py)
+    xlsx = export_excel(cls_csv, steer_csv, frames_dir, fps=fps,
+                        debug=debug, all_cols=all_cols)
 
     return xlsx
-
 
 def main():
     import argparse
@@ -202,7 +242,8 @@ def main():
             # --- export-only 조건 ---
             if cls_csv.exists() and not out_xlsx.exists():
                 if tqdm: bar.set_postfix_str(f"export_only:{v.name}")
-                xlsx = export_excel(cls_csv, cls_csv.parent, args.fps)
+                steer_csv = work_dir / "_steer_result.csv"
+                xlsx = export_excel(cls_csv, steer_csv, cls_csv.parent, args.fps)
                 results.append((v, xlsx, "ok-export-only"))
                 if tqdm: bar.set_postfix_str(f"ok-export-only:{v.name}")
                 continue
