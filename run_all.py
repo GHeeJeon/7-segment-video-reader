@@ -178,7 +178,7 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
     steer_csv = work_dir / "_steer_result.csv"
     try:
         # run classifier
-        classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=False)
+        classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=overlay)
     except Exception as e:
         print(f"[경고] steering 분석 중 오류(무시하고 진행): {e}")
 
