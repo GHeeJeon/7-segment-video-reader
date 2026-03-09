@@ -47,11 +47,13 @@ def export_speed_xlsx(
     fps: int = 30,
     debug: bool = False,
     show_tech_cols: bool = False,
+    steer_csv_path: str = None,
 ) -> str:
     if not os.path.isfile(cls_csv_path):
         raise FileNotFoundError(f"CSV not found: {cls_csv_path}")
 
     df = pd.read_csv(cls_csv_path)
+    # ... (existing logic for df processing)
     df = df.loc[:, ~df.columns.str.match(r"^Unnamed")]
     df = df.loc[:, ~df.columns.duplicated(keep="first")]
     df = df.reset_index(drop=True)
@@ -79,16 +81,19 @@ def export_speed_xlsx(
             break
     if start_idx is None:
         print("No valid start index found")
-        return out_xlsx_path
+        # return out_xlsx_path # 여기서 리턴해버리면 steer 데이터도 못 씀. 계속 진행.
+        start_idx = 0
+        start_save = 0
+        end_save = len(speeds) - 1
+    else:
+        start_save = start_idx
+        right_limit = black_idx if black_idx is not None else len(df)
 
-    start_save = start_idx
-    right_limit = black_idx if black_idx is not None else len(df)
-
-    # 블랙 직전 0 제거
-    j = right_limit - 1
-    while j >= start_idx and speeds.iloc[j] == 0:
-        j -= 1
-    end_save = j
+        # 블랙 직전 0 제거
+        j = right_limit - 1
+        while j >= start_idx and speeds.iloc[j] == 0:
+            j -= 1
+        end_save = j
 
     # ----- 시간 및 데이터 정리 -----
     time_s = [None] * len(df)
@@ -244,12 +249,23 @@ def export_speed_xlsx(
     
     out_client = out_client.rename(columns=rename_dict)
 
+    # ---------------- Steering 데이터 읽기 ----------------
+    steer_df = None
+    if steer_csv_path and os.path.isfile(steer_csv_path):
+        try:
+            steer_df = pd.read_csv(steer_csv_path)
+        except Exception as e:
+            print(f"[경고] Steering CSV 읽기 실패: {e}")
+
     # ----- 엑셀 저장 -----
     with pd.ExcelWriter(out_xlsx_path, engine="xlsxwriter") as writer:
         metrics_df.to_excel(writer, index=False, sheet_name="speed_time", startrow=0)
         out_startrow = metrics_df.shape[0] + 2
         out_client.to_excel(writer, index=False, sheet_name="speed_time", startrow=out_startrow)
         meta_df.to_excel(writer, index=False, sheet_name="meta")
+        if steer_df is not None:
+            steer_df.to_excel(writer, index=False, sheet_name="steering_result")
+
 
     if debug:
         print(f"[DEBUG] Exported rows: {len(out)}")
