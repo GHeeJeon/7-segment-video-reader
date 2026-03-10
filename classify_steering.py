@@ -456,9 +456,9 @@ def analyze_steering_frames(
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="frames30_pts_steer 기반 핸들(steering) UI 분석")
-    ap.add_argument("--in-dir", required=True, help="입력 frames 폴더 (예: .../frames30_pts_steer)")
-    ap.add_argument("--work-dir", required=True, help="출력 저장 기준 폴더 (예: 영상 작업 폴더)")
-    ap.add_argument("--fps", type=float, required=True, help="프레임 FPS (time_sec 계산용)")
+    ap.add_argument("--in-dir", default=".", help="입력 frames 폴더 (예: ./frames30_pts_steer)")
+    ap.add_argument("--work-dir", default=".", help="출력 저장 기준 폴더 (예: 영상 작업 폴더)")
+    ap.add_argument("--fps", type=float, default=30.0, help="프레임 FPS (time_sec 계산용)")
 
     ap.add_argument("--overlay", action="store_true", help="샘플 디버그 이미지 저장")
     ap.add_argument("--overlay-every", type=int, default=30, help="오버레이 저장 주기 (기본 30)")
