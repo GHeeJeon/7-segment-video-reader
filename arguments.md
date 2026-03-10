@@ -63,4 +63,28 @@ python classify_sevenseg.py -o
 python export_speed_to_excel.py -c ./video1/_cls_result.csv -o ./video1/_speed_time.xlsx -f 30 -d -a
 ```
 
+---
 
+# classify_steering.py
+> 영상에서 핸들 UI 각도와 움직임을 분석하여 `_steer_result.csv` 생성
+
+| 단축어 | 전체 이름 | 타입 | 기본값 | 설명 |
+|:--:|:--|:--:|:--:|:--|
+| (없음) | `--in-dir` | `str` | `.` | 입력 핸들 프레임 풀더 경로 |
+| (없음) | `--work-dir` | `str` | `.` | 결과 CSV 저장 경로 |
+| (없음) | `--fps` | `float` | `30.0` | FPS (초당 프레임 수, 시간 계산용) |
+| (없음) | `--overlay` | `flag` | 없음 | 샘플 디버그 이미지 저장 활성화 |
+| (없음) | `--overlay-every` | `int` | `30` | 오버레이 저장 주기 |
+| (없음) | `--thresh` | `int` | `200` | 이미지 이진화 threshold 값 |
+| (없음) | `--zero-center-x` | `int` | `26` | 0 라벨 기준 픽셀 x 좌표 |
+| (없음) | `--x-bias` | `int` | `0` | 감지점 x 좌표 보정량 |
+| (없음) | `--tol` | `int` | `6` | 0 라벨(중앙) 판정 허용 오차 범위(px) |
+
+**단독 실행 예시**
+```bash
+# 기본값으로 현재 폴더에서 바로 실행
+python classify_steering.py
+
+# 경로 및 옵션 지정 실행
+python classify_steering.py --in-dir ./frames30_pts_steer --work-dir . --fps 30.0 --overlay
+```
