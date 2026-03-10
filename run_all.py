@@ -125,7 +125,10 @@ def run_ffmpeg_split(
 
 
 def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> Path:
-    """classify_sevenseg.py 모듈 실행"""
+    """classify_sevenseg.py 모듈 실행.
+
+    경로를 전역 변수 대신 함수 인자로 전달합니다 (Thread-safe).
+    """
     import importlib
     cls = importlib.import_module("classify_sevenseg")
 
@@ -133,11 +136,13 @@ def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> 
     vis_dir = work_dir / "_cls_overlay"
     vis_dir.mkdir(parents=True, exist_ok=True)
 
-    cls.IN_DIR = str(frames_dir)
-    cls.OUT_CSV = str(out_csv)
-    cls.VIS_DIR = str(vis_dir)
-    
-    cls.main(overlay=overlay)
+    # 전역 변수 대신 인자로 직접 전달 → 동시 실행 시 경로가 섞이지 않음
+    cls.main(
+        overlay=overlay,
+        in_dir=str(frames_dir),
+        out_csv=str(out_csv),
+        vis_dir=str(vis_dir),
+    )
 
     if not out_csv.exists():
         raise RuntimeError(f"분류 CSV가 생성되지 않았습니다: {out_csv}")

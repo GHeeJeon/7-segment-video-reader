@@ -325,7 +325,19 @@ def draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit):
     return vis
 
 # ---------- 메인 ----------
-def main(overlay=None):
+def main(overlay=None, in_dir=None, out_csv=None, vis_dir=None):
+    """7-segment 숫자 분류 메인 함수.
+
+    in_dir / out_csv / vis_dir 를 인자로 받으면 해당 경로를 사용합니다.
+    인자가 없으면 모듈 상단의 전역 변수(IN_DIR, OUT_CSV, VIS_DIR)를 사용합니다.
+    → 직접 실행(명령줄) 시에도 기존과 동일하게 동작합니다.
+    → run_all.py에서 인자로 쯔류함으로써 Thread-safe 사용이 가능합니다.
+    """
+    # 인자가 없으면 전역 변수 폴백
+    _in_dir  = in_dir  if in_dir  is not None else IN_DIR
+    _out_csv = out_csv if out_csv is not None else OUT_CSV
+    _vis_dir = vis_dir if vis_dir is not None else VIS_DIR
+
     # 명령줄 인자 파싱 (직접 실행될 때만)
     if overlay is None:
         parser = argparse.ArgumentParser(description='7-segment 숫자 분류')
@@ -336,12 +348,12 @@ def main(overlay=None):
 
     # overlay 활성화 시에만 폴더 생성
     if overlay:
-        os.makedirs(VIS_DIR, exist_ok=True)
+        os.makedirs(_vis_dir, exist_ok=True)
 
     patterns = ("*.[Pp][Nn][Gg]", "*.[Jj][Pp][Gg]", "*.[Jj][Pp][Ee][Gg]")
     paths = []
     for pat in patterns:
-        paths.extend(glob.glob(os.path.join(IN_DIR, pat)))
+        paths.extend(glob.glob(os.path.join(_in_dir, pat)))
     paths = sorted(dict.fromkeys(paths))  # 안전하게 중복 제거
 
     rows = ["filename,num_digits,pred_number,preds,confs,dists,states_per_digit\n"]
@@ -382,7 +394,6 @@ def main(overlay=None):
             states_dump.append(f"{place}:{''.join(map(str,states))}")
 
         # 5) pred_number 조립 (특수 조건 처리 포함)
-        # 조건: tens 세그먼트가 모두 0이고, ones 는 유효하면 → ones만 사용
         tens_states = digit_states.get("tens", (0,)*7)
         ones_pred = int(preds[1]) if preds[1] != "-1" else -1
         tens_pred = int(preds[0]) if preds[0] != "-1" else -1
@@ -397,7 +408,7 @@ def main(overlay=None):
         # 6) 시각화 저장 (옵션이 활성화된 경우에만)
         if overlay:
             vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
-            cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
+            cv2.imwrite(os.path.join(_vis_dir, f"{i:04d}_{pred_number}.png"), vis)
 
         # 7) CSV 저장
         preds_str = '"' + " ".join(preds) + '"'
@@ -408,13 +419,13 @@ def main(overlay=None):
         )
         ok += 1
 
-    with open(OUT_CSV, "w", encoding="utf-8") as f:
+    with open(_out_csv, "w", encoding="utf-8") as f:
         f.writelines(rows)
     
     if overlay:
-        print(f"완료: {ok}장 분류 → {OUT_CSV} / 오버레이: {VIS_DIR}")
+        print(f"완료: {ok}장 분류 → {_out_csv} / 오버레이: {_vis_dir}")
     else:
-        print(f"완료: {ok}장 분류 → {OUT_CSV}")
+        print(f"완료: {ok}장 분류 → {_out_csv}")
 
 if __name__ == "__main__":
     main()
