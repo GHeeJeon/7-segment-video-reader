@@ -137,7 +137,8 @@ def _save_overlay(img_bgr: np.ndarray, cx_raw: Optional[int], px_offset: Optiona
         cv2.circle(debug_img, (cx_display, (h // 2) + cfg.overlay_border), 2, (0, 255, 255), -1)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(out_path), debug_img)
+    # PNG 압축 레벨 0: 무압축 저장 (58×19px 소형 이미지라 압축 오버헤드 > 절감 효과)
+    cv2.imwrite(str(out_path), debug_img, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
 
 # ─────────────────────────────────────────────────────────────
