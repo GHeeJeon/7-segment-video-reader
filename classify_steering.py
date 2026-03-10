@@ -29,9 +29,10 @@ from __future__ import annotations
 import argparse
 import csv
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -139,6 +140,120 @@ def _save_overlay(img_bgr: np.ndarray, cx_raw: Optional[int], px_offset: Optiona
     cv2.imwrite(str(out_path), debug_img)
 
 
+# ─────────────────────────────────────────────────────────────
+# 병렬 로딩 헬퍼
+# ─────────────────────────────────────────────────────────────
+
+def _load_one_frame(path: Path) -> Optional[np.ndarray]:
+    """디스크에서 이미지 한 장을 읽어 반환합니다.
+    
+    반환값:
+        - 정상: BGR ndarray
+        - 실패(파일 없음 / 빈 파일): None
+    """
+    img = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if img is None or img.size == 0:
+        return None
+    return img
+
+
+def _load_frames_parallel(paths: List[Path], max_workers: int = 4) -> List[Optional[np.ndarray]]:
+    """이미지 목록을 스레드 풀로 병렬 로딩합니다.
+
+    pool.map()을 사용하므로 반환 순서는 입력(paths) 순서와 동일합니다.
+    (로딩이 완료되는 순서가 달라도 결과는 항상 paths[0]→imgs[0] 순서)
+
+    args:
+        paths      : 로딩할 파일 경로 리스트 (정렬된 순서)
+        max_workers: 동시에 디스크를 읽을 스레드 수 (기본값 4)
+    returns:
+        paths와 같은 순서의 ndarray 리스트 (실패 시 해당 위치 None)
+    """
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        imgs = list(pool.map(_load_one_frame, paths))
+    return imgs
+
+
+# ─────────────────────────────────────────────────────────────
+# 단일 프레임 분석 헬퍼
+# ─────────────────────────────────────────────────────────────
+
+def _analyze_frame(img: np.ndarray, i: int, fps: float, p: Path,
+                   cfg: SteeringConfig, keep_img: bool) -> Dict:
+    """이미지 1장을 분석하여 결과 딕셔너리를 반환합니다.
+
+    분석 내용:
+        - 핸들 UI 픽셀 중심(cx_raw) 검출
+        - 중앙(zero_center_x) 대비 픽셀 오프셋 계산
+        - 위치 라벨 생성 (예: N_0, L_-3, R_+5)
+
+    args:
+        img      : 분석할 BGR 이미지
+        i        : 프레임 인덱스 (파일 순서 번호)
+        fps      : 초당 프레임 수 (시간 계산용)
+        p        : 원본 파일 경로 (csv 기록용)
+        cfg      : 분석 설정값
+        keep_img : True면 결과에 img를 포함 (오버레이 저장용)
+    returns:
+        분석 결과를 담은 딕셔너리
+    """
+    cx_raw, _, _ = _analyze_one(img, cfg)
+
+    # 픽셀 오프셋 계산 (중앙 0 기준, 왼쪽 음수 / 오른쪽 양수)
+    px_offset = None
+    if cx_raw is not None:
+        cx_corrected = cx_raw + cfg.x_point_bias
+        px_offset = cx_corrected - cfg.zero_center_x
+
+    # 위치 라벨 생성 (파일명·CSV에 사용)
+    if px_offset is None:  pos_str, off_val = "X", "null"
+    elif px_offset == 0:   pos_str, off_val = "N", "0"
+    elif px_offset < 0:    pos_str, off_val = "L", str(px_offset)
+    else:                  pos_str, off_val = "R", f"+{px_offset}"
+    steer_label = f"{pos_str}_{off_val}"
+
+    return {
+        "frame_idx": i,
+        "time_sec":  i / fps,
+        "cx_raw":    cx_raw,
+        "px_offset": px_offset,
+        "steer_label": steer_label,
+        "img_path":  str(p),
+        "error":     False,
+        "img":       img if keep_img else None,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# 병렬 오버레이 저장 헬퍼
+# ─────────────────────────────────────────────────────────────
+
+def _save_overlay_batch(
+    save_queue: List[Tuple[np.ndarray, Optional[int], Optional[float], SteeringConfig, Path]],
+    max_workers: int = 4,
+) -> None:
+    """오버레이 이미지를 스레드 풀로 병렬 저장합니다.
+
+    분석이 완전히 끝난 뒤 save_queue에 쌓인 항목을 한꺼번에 씁니다.
+    각 파일은 독립적이므로 저장 순서가 뒤바뀌어도 결과에 영향이 없습니다.
+    (파일명에 프레임 번호가 명시되어 있기 때문)
+
+    args:
+        save_queue  : (img, cx_raw, px_offset, cfg, out_path) 튜플 리스트
+        max_workers : 동시에 디스크에 쓸 스레드 수 (기본값 4)
+    """
+    def _write(args):
+        img, cx_raw, px_offset, cfg, out_path = args
+        _save_overlay(img, cx_raw, px_offset, cfg, out_path)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        pool.map(_write, save_queue)
+
+
+# ─────────────────────────────────────────────────────────────
+# 메인 분석 함수
+# ─────────────────────────────────────────────────────────────
+
 def analyze_steering_frames(
     frames_dir: Path,
     work_dir: Path,
@@ -146,9 +261,18 @@ def analyze_steering_frames(
     cfg: SteeringConfig = SteeringConfig(),
     overlay: bool = False,
 ) -> Path:
-    """frames_dir 내 img_*.png를 순회하며 steering 각도를 CSV로 저장하고 결과 CSV 경로를 반환"""
+    """frames_dir 내 img_*.png를 분석하여 CSV로 저장하고 결과 CSV 경로를 반환합니다.
+
+    처리 순서:
+        1) 이미지 병렬 로딩  (_load_frames_parallel)
+        2) 프레임별 분석     (_analyze_frame)
+        3) 노이즈 감지       (직전·직후 프레임 비교)
+        4) 3D-LNR / SRR 계산
+        5) CSV 저장
+        6) 오버레이 이미지 병렬 저장 (_save_overlay_batch), overlay=True 시
+    """
     frames_dir = frames_dir.resolve()
-    work_dir = work_dir.resolve()
+    work_dir   = work_dir.resolve()
 
     if not frames_dir.is_dir():
         raise RuntimeError(f"frames_dir 폴더를 찾을 수 없습니다: {frames_dir}")
@@ -157,51 +281,30 @@ def analyze_steering_frames(
     if not paths:
         raise RuntimeError(f"프레임 이미지를 찾지 못했습니다: {frames_dir}/{IMG_GLOB}")
 
-    out_csv = work_dir / "_steer_result.csv"
+    out_csv    = work_dir / "_steer_result.csv"
     overlay_dir = work_dir / "_steer_overlay"
 
-    # 1단계: 모든 프레임 분석 데이터 수집
+    # ── 1단계: 병렬 로딩 ──────────────────────────────────────
+    # 스레드 풀이 paths 순서를 보장하여 imgs[i] == paths[i]
+    imgs = _load_frames_parallel(paths)
+
+    # ── 2단계: 순서대로 분석 ──────────────────────────────────
+    # 분석 자체는 이전 프레임 결과에 의존하지 않으므로
+    # 로딩만 병렬화해도 병목이 크게 줄어듭니다.
     results = []
-    for i, p in enumerate(paths):
-        img = cv2.imread(str(p), cv2.IMREAD_COLOR)
-        if img is None or img.size == 0:
+    for i, (p, img) in enumerate(zip(paths, imgs)):
+        if img is None:
+            # 이미지 로딩 실패 → 에러 레코드 추가
             results.append({
-                "frame_idx": i,
-                "time_sec": i / fps,
-                "cx_raw": None,
-                "px_offset": None,
-                "angle_deg": None,
-                "angle_quant": None,
-                "img_path": str(p),
-                "error": True
+                "frame_idx": i, "time_sec": i / fps,
+                "cx_raw": None, "px_offset": None,
+                "steer_label": "ERR", "img_path": str(p),
+                "error": True, "img": None,
             })
             continue
 
-        cx_raw, _, _ = _analyze_one(img, cfg)
-        
-        # 픽셀 오프셋 계산 (중앙 0 기준)
-        px_offset = None
-        if cx_raw is not None:
-            cx_corrected = cx_raw + cfg.x_point_bias
-            px_offset = cx_corrected - cfg.zero_center_x
-
-        # 라벨 생성 (N_0, L_-5, R_+3 등)
-        if px_offset is None: pos_str, off_val = "X", "null"
-        elif px_offset == 0: pos_str, off_val = "N", "0"
-        elif px_offset < 0: pos_str, off_val = "L", str(px_offset)
-        else: pos_str, off_val = "R", f"+{px_offset}"
-        steer_label = f"{pos_str}_{off_val}"
-
-        results.append({
-            "frame_idx": i,
-            "time_sec": i / fps,
-            "cx_raw": cx_raw,
-            "px_offset": px_offset,
-            "steer_label": steer_label,
-            "img_path": str(p),
-            "error": False,
-            "img": img if overlay else None
-        })
+        res = _analyze_frame(img, i, fps, p, cfg, keep_img=overlay)
+        results.append(res)
 
     # (2단계: 노이즈 감지 로직은 그대로 유지)
     for i in range(len(results)):
@@ -329,10 +432,23 @@ def analyze_steering_frames(
             row.append(res["img_path"])
             w.writerow(row)
 
-            if overlay and res["img"] is not None:
-                # 파일명 규칙: f000000_POS_VAL.png
-                out_img = overlay_dir / f"f{res['frame_idx']:06d}_{res['steer_label']}.png"
-                _save_overlay(res["img"], res["cx_raw"], res["px_offset"], cfg, out_img)
+    # ── 6단계: 오버레이 이미지 병렬 저장 ──────────────────────────────
+    # 분석(CSV 기록)이 완전히 끝난 뒤, save_queue를 한꺼번에 병렬 저장합니다.
+    # 각 파일은 독립적이므로 저장 완료 순서가 달라도 결과에 영향이 없습니다.
+    if overlay:
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+        save_queue = [
+            (
+                res["img"],
+                res["cx_raw"],
+                res["px_offset"],
+                cfg,
+                overlay_dir / f"f{res['frame_idx']:06d}_{res['steer_label']}.png",
+            )
+            for res in results
+            if res["img"] is not None
+        ]
+        _save_overlay_batch(save_queue)
 
     return out_csv
 
