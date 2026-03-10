@@ -71,26 +71,57 @@ def find_videos(source_dir: Path, exts: Tuple[str, ...]) -> List[Path]:
     return sorted(videos)
 
 
-def run_ffmpeg(video: Path, frames_dir: Path, crop: str, fps: int) -> None:
-    frames_dir.mkdir(parents=True, exist_ok=True)
-    out_pattern = str(frames_dir / "img_%010d.png")
+def run_ffmpeg_split(
+    video: Path,
+    speed_frames_dir: Path,
+    steer_frames_dir: Path,
+    speed_crop: str,
+    steer_crop: str,
+    fps: int,
+) -> None:
+    """
+    ffmpeg를 1회만 실행하여 속력 UI와 핸들 UI 프레임을 동시에 추출합니다.
+    split 필터를 사용하므로 영상 디코딩이 1회만 발생합니다.
+    """
+    speed_frames_dir.mkdir(parents=True, exist_ok=True)
+    steer_frames_dir.mkdir(parents=True, exist_ok=True)
+
+    speed_out = str(speed_frames_dir / "img_%010d.png")
+    steer_out = str(steer_frames_dir / "img_%010d.png")
+
+    # split 필터: 동일 디코딩 스트림을 두 브랜치로 분기
+    filter_complex = (
+        f"split=2[s_speed][s_steer];"
+        f"[s_speed]{speed_crop},fps={fps}[out_speed];"
+        f"[s_steer]{steer_crop},fps={fps}[out_steer]"
+    )
+
     cmd = [
         which_or_raise("ffmpeg"),
         "-y",
         "-i", str(video),
-        "-vf", f"{crop},fps={fps}",
+        "-filter_complex", filter_complex,
+        # 속력 UI 출력
+        "-map", "[out_speed]",
         "-frame_pts", "1",
-        out_pattern,
+        speed_out,
+        # 핸들 UI 출력
+        "-map", "[out_steer]",
+        "-frame_pts", "1",
+        steer_out,
     ]
-    # ffmpeg 출력은 꽤 큼: 그대로 stderr로 흘려보냄
+
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg 실패: {video.name}\n{result.stderr[-800:]}" )
+        raise RuntimeError(f"ffmpeg 실패: {video.name}\n{result.stderr[-800:]}")
 
-    # 최소 한 장 생성 확인
-    created = list(frames_dir.glob("img_*.png"))
-    if not created:
-        raise RuntimeError(f"ffmpeg가 프레임을 생성하지 못했습니다: {video}")
+    created_speed = list(speed_frames_dir.glob("img_*.png"))
+    created_steer = list(steer_frames_dir.glob("img_*.png"))
+    if not created_speed:
+        raise RuntimeError(f"ffmpeg가 속력 프레임을 생성하지 못했습니다: {video}")
+    if not created_steer:
+        raise RuntimeError(f"ffmpeg가 핸들 프레임을 생성하지 못했습니다: {video}")
+
 
 
 def classify_frames(frames_dir: Path, work_dir: Path, overlay: bool = False) -> Path:
@@ -163,21 +194,26 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
     stem = video.stem
     work_dir = parent / stem
 
-    # 1) 핸들 UI 프레임 추출
+    # 1) ffmpeg 1회 실행으로 핸들 UI + 속력 UI 프레임 동시 추출 (split 필터)
     steer_crop = roi_to_crop(ROI_STEER)
     steer_frames_dir = work_dir / "frames30_pts_steer"
-    run_ffmpeg(video, steer_frames_dir, crop=steer_crop, fps=fps)
+    frames_dir = work_dir / "frames30_pts"
+
+    run_ffmpeg_split(
+        video=video,
+        speed_frames_dir=frames_dir,
+        steer_frames_dir=steer_frames_dir,
+        speed_crop=crop,
+        steer_crop=steer_crop,
+        fps=fps,
+    )
 
     # 2) 속력 인식 분석 (classify_sevenseg.py)
-    #    우선 속력 프레임 추출이 선행되어야 함
-    frames_dir = work_dir / "frames30_pts"
-    run_ffmpeg(video, frames_dir, crop=crop, fps=fps)
     cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)
 
     # 3) 핸들 각도 분석 (classify_steering.py)
     steer_csv = work_dir / "_steer_result.csv"
     try:
-        # run classifier
         classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=overlay)
     except Exception as e:
         print(f"[경고] steering 분석 중 오류(무시하고 진행): {e}")

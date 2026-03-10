@@ -8,6 +8,7 @@ _steer_overlay
 *.xlsx
 *.csv
 *.mp4
+*.zip
 !test/frames30_pts
 !test/_cls_overlay
 __pycache__
