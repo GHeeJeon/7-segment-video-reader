@@ -20,6 +20,7 @@ import sys
 import glob
 import shutil
 import subprocess
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Tuple
 
@@ -224,6 +225,54 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
 
     return xlsx
 
+
+def _process_one(
+    video_path: str,
+    crop: str,
+    fps: int,
+    overlay: bool,
+    debug: bool,
+    all_cols: bool,
+    skip_existing: bool,
+) -> Tuple[str, str, str]:
+    """영상 1개 전체 파이프라인 실행 함수 (ProcessPoolExecutor에서 호출됩니다).
+
+    반환값: (video_path, xlsx_path_or_empty, status)
+        status: 'ok' | 'ok-export-only' | 'skipped' | 'error:...' 중 하나
+
+    주의: ProcessPoolExecutor에서 호출되므로 반드시 최상위(top-level) 함수여야 합니다.
+    클래스 메서드나 람다는 pickle 직렬화가 안 되어 오류가 발생합니다.
+    각 프로세스는 독립된 메모리와 출력 경로를 가지므로 데이터가 섞이지 않습니다.
+    """
+    video = Path(video_path)
+    work_dir  = video.parent / video.stem
+    cls_csv   = work_dir / "_cls_result.csv"
+    out_xlsx  = work_dir / "_speed_time.xlsx"
+    steer_csv = work_dir / "_steer_result.csv"
+
+    # 스킵 조건: 이미 결과 파일이 있는 경우
+    if skip_existing and out_xlsx.exists():
+        return video_path, str(out_xlsx), "skipped"
+
+    # export-only 조건: 분류 CSV는 있지만 엑셀이 없는 경우
+    if cls_csv.exists() and not out_xlsx.exists():
+        try:
+            xlsx = export_excel(cls_csv, steer_csv, cls_csv.parent, fps)
+            return video_path, str(xlsx), "ok-export-only"
+        except Exception as e:
+            return video_path, "", f"error:{e}"
+
+    # 기본 전체 파이프라인 실행
+    try:
+        xlsx = process_video(
+            video, crop=crop, fps=fps,
+            overlay=overlay, debug=debug, all_cols=all_cols,
+        )
+        return video_path, str(xlsx), "ok"
+    except Exception as e:
+        return video_path, "", f"error:{e}"
+
+
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="ffmpeg 추출 → 분류 → 엑셀 내보내기")
@@ -234,8 +283,14 @@ def main():
     ap.add_argument("-v", "--video-ext", default=",".join(DEFAULT_VID_EXTS), help="처리할 동영상 확장자 콤마구분(.mp4,.mov)")
     ap.add_argument("-x", "--skip-existing", action="store_true", help="이미 _speed_time.xlsx가 있으면 해당 영상은 건너뜀")
 
+    # 병렬 처리 옵션
+    ap.add_argument("-w", "--workers", type=int, default=1,
+                    help="동시 처리 영상 수 (기본 1=순차실행). "
+                         "게이밍 PC 권장: 4~6 / 일반 PC 권장: 2~3. "
+                         "높을수록 빠르지만 CPU/디스크 부하 증가.")
+
     # classify_sevenseg 관련 옵션
-    ap.add_argument("-o", "--overlay", action="store_true", help="인식 결과 오버레이 이미지 저장 (classify_sevenseg.py)")
+    ap.add_argument("-o", "--overlay", action="store_true", help="인식 결과 오버레이 이미지 저장")
 
     # export_speed_to_excel 관련 옵션
     ap.add_argument("-d", "--debug", action="store_true", help="디버그 출력 (export_speed_to_excel.py)")
@@ -259,59 +314,65 @@ def main():
         sys.exit(1)
 
     print(f"총 {len(videos)}개 동영상 처리 시작… source_dir={source_dir}")
+    if args.workers > 1:
+        print(f"  병렬 모드: --workers {args.workers} (동시 처리)")
+    else:
+        print(f"  순차 모드: --workers 1 (기본)")
 
-    bar = tqdm(videos, desc="전체 파이프라인", unit="vid", dynamic_ncols=True) if tqdm else videos
-    results = []
+    # 공통 인자 딕셔너리 (모든 영상에 동일하게 전달)
+    common = dict(
+        crop=args.crop,
+        fps=args.fps,
+        overlay=args.overlay,
+        debug=args.debug,
+        all_cols=args.all_cols,
+        skip_existing=args.skip_existing,
+    )
 
-    for v in bar:
-        try:
-            work_dir = v.parent / v.stem
-            cls_csv = work_dir / "_cls_result.csv"
-            out_xlsx = work_dir / "_speed_time.xlsx"
+    results: List[Tuple[Path, str, str]] = []
 
-            # --- 스킵 조건 ---
-            if args.skip_existing and out_xlsx.exists():
-                if tqdm: bar.set_postfix_str(f"skip:{v.name}")
-                results.append((v, out_xlsx, "skipped"))
-                continue
-
-            # --- export-only 조건 ---
-            if cls_csv.exists() and not out_xlsx.exists():
-                if tqdm: bar.set_postfix_str(f"export_only:{v.name}")
-                steer_csv = work_dir / "_steer_result.csv"
-                xlsx = export_excel(cls_csv, steer_csv, cls_csv.parent, args.fps)
-                results.append((v, xlsx, "ok-export-only"))
-                if tqdm: bar.set_postfix_str(f"ok-export-only:{v.name}")
-                continue
-
-            # --- 기본 전체 파이프라인 실행 ---
-            if tqdm: bar.set_postfix_str(f"ffmpeg:{v.name}")
-            xlsx = process_video(
-                v,
-                crop=args.crop,
-                fps=args.fps,
-                overlay=args.overlay,
-                debug=args.debug,
-                all_cols=args.all_cols,
-            )
-            results.append((v, xlsx, "ok"))
-            if tqdm: bar.set_postfix_str(f"ok:{v.name}")
-
-        except Exception as e:
-            results.append((v, None, f"error:{e}"))
+    if args.workers <= 1:
+        # ─── 순차 실행 (workers=1, 기본값) ───────────────────────────────
+        bar = tqdm(videos, desc="전체 파이프라인", unit="vid", dynamic_ncols=True) if tqdm else videos
+        for v in bar:
+            vp, xlsx, status = _process_one(str(v), **common)
+            results.append((Path(vp), xlsx, status))
             if tqdm:
-                bar.set_postfix_str(f"err:{v.name}")
-            else:
-                print(f"[오류] {v}: {e}")
+                bar.set_postfix_str(f"{status}:{v.name}")
 
-    # 요약
-    ok_cnt = sum(1 for _, _, s in results if s.startswith("ok"))
-    err_cnt = sum(1 for _, _, s in results if isinstance(s, str) and s.startswith("error"))
+    else:
+        # ─── 병렬 실행 (workers > 1) ────────────────────────────────────
+        # ProcessPoolExecutor: 각 프로세스가 독립 메모리 → 데이터 혼용 없음
+        # as_completed: 먼저 끝난 프로세스부터 결과를 받아 진행 바를 즉시 업데이트
+        bar = tqdm(total=len(videos), desc="전체 파이프라인", unit="vid", dynamic_ncols=True) if tqdm else None
+        futures = {}
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            for v in videos:
+                future = pool.submit(_process_one, str(v), **common)
+                futures[future] = v
+
+            for future in as_completed(futures):
+                v = futures[future]
+                try:
+                    vp, xlsx, status = future.result()
+                except Exception as e:
+                    vp, xlsx, status = str(v), "", f"error:{e}"
+                results.append((Path(vp), xlsx, status))
+                if bar:
+                    bar.set_postfix_str(f"{status}:{v.name}")
+                    bar.update(1)
+
+        if bar:
+            bar.close()
+
+    # ─── 결과 요약 ────────────────────────────────────────────────────
+    ok_cnt   = sum(1 for _, _, s in results if s.startswith("ok"))
     skip_cnt = sum(1 for _, _, s in results if s == "skipped")
+    err_cnt  = sum(1 for _, _, s in results if s.startswith("error"))
 
     print(f"완료. 성공 {ok_cnt}, 스킵 {skip_cnt}, 오류 {err_cnt}")
     for v, x, s in results:
-        if s.startswith("ok"):  # ← "ok"뿐만 아니라 "ok-export-only"도 포함
+        if s.startswith("ok"):
             suffix = " (엑셀만)" if s == "ok-export-only" else ""
             print(f"  ✔ {v} → {x}{suffix}")
         elif s == "skipped":
@@ -319,5 +380,11 @@ def main():
         else:
             print(f"  ✖ {v} — {s}")
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Windows / macOS spawn 안전 가드
+# ProcessPoolExecutor는 새 프로세스 시작 시 이 파일 전체를 다시 import합니다.
+# 이 가드가 없으면 프로세스가 무한히 자기 자신을 복제합니다.
+# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     main()
