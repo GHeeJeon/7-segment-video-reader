@@ -112,9 +112,11 @@ def run_ffmpeg_split(
         steer_out,
     ]
 
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # Windows 등에서 한글 인코딩(cp949) 충돌 방지를 위해 바이트로 받고 수동 디코딩
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stderr_text = result.stderr.decode("utf-8", errors="replace")
     if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg 실패: {video.name}\n{result.stderr[-800:]}")
+        raise RuntimeError(f"ffmpeg 실패: {video.name}\n{stderr_text[-800:]}")
 
     created_speed = list(speed_frames_dir.glob("img_*.png"))
     created_steer = list(steer_frames_dir.glob("img_*.png"))
@@ -351,16 +353,23 @@ def main():
                 future = pool.submit(_process_one, str(v), **common)
                 futures[future] = v
 
-            for future in as_completed(futures):
-                v = futures[future]
-                try:
-                    vp, xlsx, status = future.result()
-                except Exception as e:
-                    vp, xlsx, status = str(v), "", f"error:{e}"
-                results.append((Path(vp), xlsx, status))
-                if bar:
-                    bar.set_postfix_str(f"{status}:{v.name}")
-                    bar.update(1)
+            try:
+                for future in as_completed(futures):
+                    v = futures[future]
+                    try:
+                        vp, xlsx, status = future.result()
+                    except Exception as e:
+                        vp, xlsx, status = str(v), "", f"error:{e}"
+                    results.append((Path(vp), xlsx, status))
+                    if bar:
+                        bar.set_postfix_str(f"{status}:{v.name}")
+                        bar.update(1)
+            except KeyboardInterrupt:
+                print("\n[알림] 사용자에 의해 병렬 작업이 중단되었습니다. 작업 취소 중...")
+                for future in futures:
+                    future.cancel()
+                pool.shutdown(wait=False, cancel_futures=True)
+                sys.exit(1)
 
         if bar:
             bar.close()
