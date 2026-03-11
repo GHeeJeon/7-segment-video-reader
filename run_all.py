@@ -228,7 +228,9 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
         try:
             classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=overlay)
         except Exception as e:
+            import traceback
             print(f"[경고] steering 분석 중 오류(무시하고 진행): {e}")
+            traceback.print_exc()
 
     # 4) 엑셀 파일 내보내기 (export_speed_to_excel.py)
     xlsx = export_excel(cls_csv, steer_csv, frames_dir, fps=fps,

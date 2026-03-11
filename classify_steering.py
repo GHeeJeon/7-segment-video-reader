@@ -117,7 +117,7 @@ def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int
 
     M = cv2.moments(thresh)
     if M["m00"] <= 0:
-        return None, None, None
+        return None, None, None, thresh  # thresh는 오버레이 저장을 위해 항상 반환
 
     cx_raw = int(M["m10"] / M["m00"])
 
