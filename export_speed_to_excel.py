@@ -272,6 +272,14 @@ def export_speed_xlsx(
     if steer_csv_path and os.path.isfile(steer_csv_path):
         try:
             steer_df = pd.read_csv(steer_csv_path)
+            # 속도 데이터와 동일한 주행 구간(start_save ~ end_save)으로 필터링
+            if "frame_idx" in steer_df.columns:
+                steer_df = steer_df[
+                    (steer_df["frame_idx"] >= start_save) &
+                    (steer_df["frame_idx"] <= end_save)
+                ].reset_index(drop=True)
+                # time_sec 재산출: 주행 시작점을 0초 기준으로
+                steer_df["time_sec"] = (steer_df["frame_idx"] - start_save) / float(fps)
         except Exception as e:
             print(f"[경고] Steering CSV 읽기 실패: {e}")
 
