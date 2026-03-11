@@ -70,6 +70,12 @@ class SteeringConfig:
     thresh_value: int = 200
     thresh_max: int = 255
 
+    # [추가] 전처리 옵션 (노이즈 감소)
+    use_clahe: bool = True          # CLAHE 대비 향상
+    clahe_clip: float = 2.0
+    use_morph: bool = True          # Morphology 노이즈 제거
+    morph_k: int = 2                # 커널 사이즈 (58x19의 작은 이미지이므로 기본 2)
+
     # 상태 판정 파라미터 (크롭된 steer 이미지 좌표계 기준)
     zero_center_x: int = 26   # 기준선 x (px)
     x_point_bias: int = 0     # 감지점 x 보정 (0으로 수정)
@@ -98,7 +104,16 @@ def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int
     - 1픽셀 ≈ 18.62도
     """
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+
+    if cfg.use_clahe:
+        # 가로 58픽셀의 아주 작은 이미지이므로 (4,4) 그리드 사용
+        gray = cv2.createCLAHE(cfg.clahe_clip, (4, 4)).apply(gray)
+        
     _, thresh = cv2.threshold(gray, cfg.thresh_value, cfg.thresh_max, cv2.THRESH_BINARY)
+    
+    if cfg.use_morph:
+        k = cv2.getStructuringElement(cv2.MORPH_RECT, (cfg.morph_k, cfg.morph_k))
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, k)
 
     M = cv2.moments(thresh)
     if M["m00"] <= 0:
@@ -201,6 +216,14 @@ def _load_frames_parallel(paths: List[Path], max_workers: int = 4) -> List[Optio
 # 단일 프레임 분석 헬퍼
 # ─────────────────────────────────────────────────────────────
 
+def _get_steer_label(px_offset: Optional[float]) -> str:
+    """픽셀 오프셋 값을 라벨 문자열로 변환합니다."""
+    if px_offset is None:  pos_str, off_val = "X", "null"
+    elif px_offset == 0:   pos_str, off_val = "N", "0"
+    elif px_offset < 0:    pos_str, off_val = "L", str(px_offset)
+    else:                  pos_str, off_val = "R", f"+{px_offset}"
+    return f"{pos_str}_{off_val}"
+
 def _analyze_frame(img: np.ndarray, i: int, fps: float, p: Path,
                    cfg: SteeringConfig, keep_img: bool) -> Dict:
     """이미지 1장을 분석하여 결과 딕셔너리를 반환합니다.
@@ -229,11 +252,8 @@ def _analyze_frame(img: np.ndarray, i: int, fps: float, p: Path,
         px_offset = cx_corrected - cfg.zero_center_x
 
     # 위치 라벨 생성 (파일명·CSV에 사용)
-    if px_offset is None:  pos_str, off_val = "X", "null"
-    elif px_offset == 0:   pos_str, off_val = "N", "0"
-    elif px_offset < 0:    pos_str, off_val = "L", str(px_offset)
-    else:                  pos_str, off_val = "R", f"+{px_offset}"
-    steer_label = f"{pos_str}_{off_val}"
+    steer_label = _get_steer_label(px_offset)
+
 
     return {
         "frame_idx": i,
@@ -329,7 +349,7 @@ def analyze_steering_frames(
         res = _analyze_frame(img, i, fps, p, cfg, keep_img=overlay)
         results.append(res)
 
-    # (2단계: 노이즈 감지 로직은 그대로 유지)
+    # (2단계: 중간 프레임 노이즈 보정 및 감지)
     for i in range(len(results)):
         res = results[i]
         if res.get("error") or res["px_offset"] is None:
@@ -344,9 +364,20 @@ def analyze_steering_frames(
            prev_res["px_offset"] is None or next_res["px_offset"] is None:
             res["is_noise"] = "N"
             continue
+        
         cur_val = res["px_offset"]
-        if cur_val != prev_res["px_offset"] and cur_val != next_res["px_offset"]:
+        prev_val = prev_res["px_offset"]
+        next_val = next_res["px_offset"]
+
+        if cur_val != prev_val and cur_val != next_val:
             res["is_noise"] = "Y"
+            # 물리구조 상 1/30초 내에 앞뒤가 같은데 가운데만 혼자 튈 수 없으므로 강제 보정
+            if prev_val == next_val:
+                res["px_offset"] = prev_val
+                res["steer_label"] = _get_steer_label(prev_val)
+                # 오버레이 이미지 저장을 위해 cx_raw도 일관되게 보정
+                if res["cx_raw"] is not None:
+                    res["cx_raw"] = int(prev_val + cfg.zero_center_x - cfg.x_point_bias)
         else:
             res["is_noise"] = "N"
 
