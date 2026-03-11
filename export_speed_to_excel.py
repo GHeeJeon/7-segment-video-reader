@@ -310,6 +310,7 @@ def export_speed_xlsx(
                 "steer_px_offset": "핸들UI_이동px(0기준)",
                 "steer_label": "핸들위치_라벨",
                 "is_noise": "노이즈의심_YN",
+                "img_name": "이미지명",
                 "lnr_1px": "3D-LNR(1px)", "3d_srr_1px": "3D-SRR_Check(1px)", "58d_srr_1px": "58D-SRR_Check(1px)",
                 "lnr_2px": "3D-LNR(2px)", "3d_srr_2px": "3D-SRR_Check(2px)", "58d_srr_2px": "58D-SRR_Check(2px)",
                 "lnr_3px": "3D-LNR(3px)", "3d_srr_3px": "3D-SRR_Check(3px)", "58d_srr_3px": "58D-SRR_Check(3px)",

@@ -13,7 +13,7 @@ frames30_pts_steer(이미 크롭된 핸들 UI 프레임들)을 입력으로 받�
 
 - 입력: frames_dir (예: .../frames30_pts_steer)  # img_%010d.png
 - 출력:
-    - work_dir/_steer_result.csv (컬럼: frame_idx, time_sec, cx_raw, angle_deg_raw, angle_deg_quantized_05, img_path)
+    - work_dir/_steer_result.csv (컬럼: frame_idx, time_sec, cx_raw, angle_deg_raw, angle_deg_quantized_05, img_name)
     - (옵션) work_dir/_steer_overlay/  # 샘플 디버그 이미지
 
 요구 패키지: opencv-python, numpy
@@ -241,7 +241,7 @@ def _analyze_frame(img: np.ndarray, i: int, fps: float, p: Path,
         "cx_raw":    cx_raw,
         "px_offset": px_offset,
         "steer_label": steer_label,
-        "img_path":  str(p),
+        "img_name":  p.name,
         "error":     False,
         "img":       img if keep_img else None,
     }
@@ -321,7 +321,7 @@ def analyze_steering_frames(
             results.append({
                 "frame_idx": i, "time_sec": i / fps,
                 "cx_raw": None, "px_offset": None,
-                "steer_label": "ERR", "img_path": str(p),
+                "steer_label": "ERR", "img_name": p.name,
                 "error": True, "img": None,
             })
             continue
@@ -439,12 +439,12 @@ def analyze_steering_frames(
         header = ["frame_idx", "time_sec", "cx_raw", "steer_px_offset", "steer_label", "is_noise"]
         for n in range(1, 6):
             header.extend([f"lnr_{n}px", f"3d_srr_{n}px", f"58d_srr_{n}px"])
-        header.append("img_path")
+        header.append("img_name")
         w.writerow(header)
 
         for res in results:
             if res.get("error"):
-                row = [res["frame_idx"], f"{res['time_sec']:.3f}", "", "", "ERR_EMPTY", "N"] + [""] * 15 + [res["img_path"]]
+                row = [res["frame_idx"], f"{res['time_sec']:.3f}", "", "", "ERR_EMPTY", "N"] + [""] * 15 + [res["img_name"]]
                 w.writerow(row)
                 continue
             cx_raw_str = "" if res["cx_raw"] is None else res["cx_raw"]
@@ -452,7 +452,7 @@ def analyze_steering_frames(
             row = [res["frame_idx"], f"{res['time_sec']:.3f}", cx_raw_str, px_off_str, res["steer_label"], res["is_noise"]]
             for n in range(1, 6):
                 row.extend([res["lnr_vals"][n], res[f"srr_check_{n}"], res[f"srr_58d_{n}"]])
-            row.append(res["img_path"])
+            row.append(res["img_name"])
             w.writerow(row)
 
     # ── 6단계: 오버레이 이미지 병렬 저장 ──────────────────────────────
