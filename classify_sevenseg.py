@@ -121,6 +121,27 @@ def _weighted_median(angles, weights):
     k = np.searchsorted(cw, 0.5)
     return float(a[min(k, len(a)-1)])
 
+def imread_kor(path, flags=cv2.IMREAD_COLOR):
+    """한글 경로 이미지를 읽어옵니다 (Windows 대응)."""
+    try:
+        # numpy를 이용해 바이너리로 읽은 후 디코딩
+        return cv2.imdecode(np.fromfile(path, dtype=np.uint8), flags)
+    except Exception:
+        return None
+
+def imwrite_kor(path, img, params=None):
+    """한글 경로에 이미지를 저장합니다 (Windows 대응)."""
+    try:
+        ext = os.path.splitext(path)[1]
+        result, nparray = cv2.imencode(ext, img, params)
+        if result:
+            with open(path, mode='wb') as f:
+                nparray.tofile(f)
+            return True
+        return False
+    except Exception:
+        return False
+
 # ---------- 전처리 ----------
 def preprocess(bgr):
     """
@@ -348,7 +369,7 @@ def main(overlay=None):
     ok = 0
 
     for i, p in enumerate(paths):
-        bgr0 = cv2.imread(p)
+        bgr0 = imread_kor(p)
         if bgr0 is None:
             continue
 
@@ -397,7 +418,7 @@ def main(overlay=None):
         # 6) 시각화 저장 (옵션이 활성화된 경우에만)
         if overlay:
             vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
-            cv2.imwrite(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
+            imwrite_kor(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
 
         # 7) CSV 저장
         preds_str = '"' + " ".join(preds) + '"'

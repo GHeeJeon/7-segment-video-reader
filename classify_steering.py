@@ -41,6 +41,28 @@ import numpy as np
 IMG_GLOB = "img_*.png"
 IMG_NUM_RE = re.compile(r"img_(\d+)\.png$", re.IGNORECASE)
 
+def imread_kor(path, flags=cv2.IMREAD_COLOR):
+    """한글 경로 이미지를 읽어옵니다 (Windows 대응)."""
+    try:
+        # numpy를 이용해 바이너리로 읽은 후 디코딩
+        return cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), flags)
+    except Exception:
+        return None
+
+def imwrite_kor(path, img, params=None):
+    """한글 경로에 이미지를 저장합니다 (Windows 대응)."""
+    try:
+        path_str = str(path)
+        ext = Path(path_str).suffix
+        result, nparray = cv2.imencode(ext, img, params)
+        if result:
+            with open(path_str, mode='wb') as f:
+                nparray.tofile(f)
+            return True
+        return False
+    except Exception:
+        return False
+
 
 @dataclass(frozen=True)
 class SteeringConfig:
@@ -138,7 +160,7 @@ def _save_overlay(img_bgr: np.ndarray, cx_raw: Optional[int], px_offset: Optiona
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     # PNG 압축 레벨 0: 무압축 저장 (58×19px 소형 이미지라 압축 오버헤드 > 절감 효과)
-    cv2.imwrite(str(out_path), debug_img, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+    imwrite_kor(out_path, debug_img, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -152,7 +174,7 @@ def _load_one_frame(path: Path) -> Optional[np.ndarray]:
         - 정상: BGR ndarray
         - 실패(파일 없음 / 빈 파일): None
     """
-    img = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    img = imread_kor(path, cv2.IMREAD_COLOR)
     if img is None or img.size == 0:
         return None
     return img

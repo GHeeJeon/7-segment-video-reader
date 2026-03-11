@@ -1,6 +1,19 @@
-import cv2
 import os
 import numpy as np
+import cv2
+
+def imwrite_kor(path, img, params=None):
+    """한글 경로에 이미지를 저장합니다 (Windows 대응)."""
+    try:
+        ext = os.path.splitext(path)[1]
+        result, nparray = cv2.imencode(ext, img, params)
+        if result:
+            with open(path, mode='wb') as f:
+                nparray.tofile(f)
+            return True
+        return False
+    except Exception:
+        return False
 
 VIDEO_PATH = "./source/sample_name/1/1-1.mp4"
 SAVE_DIR = "./steering_analysis_30fps"
@@ -95,7 +108,7 @@ while True:
             if cx_calibrated != -1:
                 cv2.circle(debug_img, (cx_calibrated + 5, (h_crop // 2) + 5), 3, (0, 255, 255), -1)
 
-            cv2.imwrite(f"{SAVE_DIR}/sample_f{frame_idx}_{state}.png", debug_img)
+            imwrite_kor(f"{SAVE_DIR}/sample_f{frame_idx}_{state}.png", debug_img)
             print(f"Saving Sample -> Frame: {frame_idx} | State: {state} | ROI(px)=({x1p},{y1p})~({x2p},{y2p})")
 
         analyzed_count += 1
