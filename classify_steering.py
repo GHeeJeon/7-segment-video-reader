@@ -95,8 +95,8 @@ def _sorted_frame_paths(frames_dir: Path) -> List[Path]:
     return sorted(paths, key=key)
 
 
-def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int], Optional[float], Optional[float]]:
-    """단일 steer 프레임 분석: (cx_raw, steering_angle_deg, steering_angle_quantized) 반환
+def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int], Optional[float], Optional[float], np.ndarray]:
+    """단일 steer 프레임 분석: (cx_raw, steering_angle_deg, steering_angle_quantized, thresh_img) 반환
     
     픽셀-각도 변환:
     - 이미지 가로 58픽셀 = -540도 ~ +540도 (전체 1080도)
@@ -138,7 +138,7 @@ def _analyze_one(img_bgr: np.ndarray, cfg: SteeringConfig) -> Tuple[Optional[int
     if abs(angle_quantized) > 60.0:
         angle_quantized = None
 
-    return cx_raw, angle_deg, angle_quantized
+    return cx_raw, angle_deg, angle_quantized, thresh
 
 
 def _save_overlay(img_bgr: np.ndarray, cx_raw: Optional[int], px_offset: Optional[float], cfg: SteeringConfig, out_path: Path) -> None:
@@ -243,7 +243,7 @@ def _analyze_frame(img: np.ndarray, i: int, fps: float, p: Path,
     returns:
         분석 결과를 담은 딕셔너리
     """
-    cx_raw, _, _ = _analyze_one(img, cfg)
+    cx_raw, _, _, thresh = _analyze_one(img, cfg)
 
     # 픽셀 오프셋 계산 (중앙 0 기준, 왼쪽 음수 / 오른쪽 양수)
     px_offset = None
@@ -263,7 +263,7 @@ def _analyze_frame(img: np.ndarray, i: int, fps: float, p: Path,
         "steer_label": steer_label,
         "img_name":  p.name,
         "error":     False,
-        "img":       img if keep_img else None,
+        "img":       cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR) if keep_img else None,
     }
 
 
