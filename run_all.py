@@ -202,24 +202,33 @@ def process_video(video: Path, crop: str, fps: int, overlay: bool, debug: bool, 
     steer_frames_dir = work_dir / "frames30_pts_steer"
     frames_dir = work_dir / "frames30_pts"
 
-    run_ffmpeg_split(
-        video=video,
-        speed_frames_dir=frames_dir,
-        steer_frames_dir=steer_frames_dir,
-        speed_crop=crop,
-        steer_crop=steer_crop,
-        fps=fps,
-    )
+    skip_ffmpeg = False
+    if frames_dir.exists() and steer_frames_dir.exists():
+        if any(frames_dir.iterdir()) and any(steer_frames_dir.iterdir()):
+            skip_ffmpeg = True
+
+    if not skip_ffmpeg:
+        run_ffmpeg_split(
+            video=video,
+            speed_frames_dir=frames_dir,
+            steer_frames_dir=steer_frames_dir,
+            speed_crop=crop,
+            steer_crop=steer_crop,
+            fps=fps,
+        )
 
     # 2) 속력 인식 분석 (classify_sevenseg.py)
-    cls_csv = classify_frames(frames_dir, work_dir, overlay=overlay)
+    cls_csv = work_dir / "_cls_result.csv"
+    if not cls_csv.exists():
+        classify_frames(frames_dir, work_dir, overlay=overlay)
 
     # 3) 핸들 각도 분석 (classify_steering.py)
     steer_csv = work_dir / "_steer_result.csv"
-    try:
-        classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=overlay)
-    except Exception as e:
-        print(f"[경고] steering 분석 중 오류(무시하고 진행): {e}")
+    if not steer_csv.exists():
+        try:
+            classify_steer_frames(steer_frames_dir, work_dir, fps=fps, overlay=overlay)
+        except Exception as e:
+            print(f"[경고] steering 분석 중 오류(무시하고 진행): {e}")
 
     # 4) 엑셀 파일 내보내기 (export_speed_to_excel.py)
     xlsx = export_excel(cls_csv, steer_csv, frames_dir, fps=fps,
@@ -255,14 +264,6 @@ def _process_one(
     # 스킵 조건: 이미 결과 파일이 있는 경우
     if skip_existing and out_xlsx.exists():
         return video_path, str(out_xlsx), "skipped"
-
-    # export-only 조건: 분류 CSV는 있지만 엑셀이 없는 경우
-    if cls_csv.exists() and not out_xlsx.exists():
-        try:
-            xlsx = export_excel(cls_csv, steer_csv, cls_csv.parent, fps)
-            return video_path, str(xlsx), "ok-export-only"
-        except Exception as e:
-            return video_path, "", f"error:{e}"
 
     # 기본 전체 파이프라인 실행
     try:
