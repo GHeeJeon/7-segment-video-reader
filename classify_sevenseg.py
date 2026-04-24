@@ -5,6 +5,7 @@
 #  - [C] 시각화 저장을 선택적으로 실행 가능
 import os, glob, cv2, numpy as np, argparse
 from collections import namedtuple
+from concurrent.futures import ThreadPoolExecutor
 
 # ===== 입출력 =====
 IN_DIR   = r"./frames30_pts"  # 입력 폴더
@@ -141,6 +142,51 @@ def imwrite_kor(path, img, params=None):
         return False
     except Exception:
         return False
+
+
+# ─────────────────────────────────────────────────────────────
+# 병렬 로딩 / 배치 저장 헬퍼
+# ─────────────────────────────────────────────────────────────
+
+def _load_one_frame(path):
+    """디스크에서 이미지 한 장을 읽어 반환합니다."""
+    img = imread_kor(path)
+    if img is None:
+        return None
+    return img
+
+
+def _load_frames_parallel(paths, max_workers=4):
+    """이미지 목록을 스레드 풀로 병렬 로딩합니다.
+
+    pool.map()을 사용하므로 반환 순서는 입력(paths) 순서와 동일합니다.
+    args:
+        paths      : 로딩할 파일 경로 리스트 (정렬된 순서)
+        max_workers: 동시에 디스크를 읽을 스레드 수 (기본값 4)
+    returns:
+        paths와 같은 순서의 ndarray 리스트 (실패 시 해당 위치 None)
+    """
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        imgs = list(pool.map(_load_one_frame, paths))
+    return imgs
+
+
+def _save_overlay_batch(save_queue, max_workers=4):
+    """오버레이 이미지를 스레드 풀로 병렬 저장합니다.
+
+    분석이 완전히 끝난 뒤 save_queue에 쌓인 항목을 한꺼번에 씁니다.
+    args:
+        save_queue  : (path, img) 튜플 리스트
+        max_workers : 동시에 디스크에 쓸 스레드 수 (기본값 4)
+    """
+    def _write(args):
+        path, img = args
+        # PNG 압축 레벨 1: 기본(6) 대비 저장 속도 향상, 파일 크기 소폭 증가
+        imwrite_kor(path, img, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        pool.map(_write, save_queue)
+
 
 # ---------- 전처리 ----------
 def preprocess(bgr):
@@ -368,8 +414,18 @@ def main(overlay=None):
     rows = ["filename,num_digits,pred_number,preds,confs,dists,states_per_digit\n"]
     ok = 0
 
-    for i, p in enumerate(paths):
-        bgr0 = imread_kor(p)
+    # ── 1단계: 이미지 로딩 ────────────────────────────────────────
+    # overlay=True: 스레드 풀 병렬 로딩 (I/O 절감 > 풀 초기화 오버헤드)
+    # overlay=False: 순차 로딩  (소형 이미지 환경에서 풀 오버헤드 > I/O 절감)
+    if overlay:
+        imgs = _load_frames_parallel(paths)
+    else:
+        imgs = [_load_one_frame(p) for p in paths]
+
+    save_queue = []  # (path, img) — 오버레이 배치 저장용
+
+    # ── 2단계: 순서대로 분석 ──────────────────────────────────────
+    for i, (p, bgr0) in enumerate(zip(paths, imgs)):
         if bgr0 is None:
             continue
 
@@ -415,10 +471,10 @@ def main(overlay=None):
         else:
             pred_number = tens_pred * 10 + ones_pred
 
-        # 6) 시각화 저장 (옵션이 활성화된 경우에만)
+        # 6) 시각화 — 분석 중 즉시 저장하지 않고 큐에 적재
         if overlay:
             vis = draw_overlay_multi(bgr, bw, core, pair_boxes, per_digit)
-            imwrite_kor(os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis)
+            save_queue.append((os.path.join(VIS_DIR, f"{i:04d}_{pred_number}.png"), vis))
 
         # 7) CSV 저장
         preds_str = '"' + " ".join(preds) + '"'
@@ -431,8 +487,11 @@ def main(overlay=None):
 
     with open(OUT_CSV, "w", encoding="utf-8") as f:
         f.writelines(rows)
-    
-    if overlay:
+
+    # ── 3단계: 오버레이 이미지 병렬 저장 ────────────────────────
+    # 분석(CSV 기록)이 완전히 끝난 뒤 save_queue를 한꺼번에 병렬 저장합니다.
+    if overlay and save_queue:
+        _save_overlay_batch(save_queue)
         print(f"완료: {ok}장 분류 → {OUT_CSV} / 오버레이: {VIS_DIR}")
     else:
         print(f"완료: {ok}장 분류 → {OUT_CSV}")

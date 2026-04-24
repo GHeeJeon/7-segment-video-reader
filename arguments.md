@@ -18,6 +18,7 @@
 | `-c` | `--crop` | `str` | `"crop=iw*0.013:ih*0.05:iw*0.0235:ih*0.08"` | ffmpeg crop 필터 문자열 (영상 일부 영역만 추출) |
 | `-v` | `--video-ext` | `str` | `.mp4` | 처리할 동영상 확장자 목록 (콤마 구분). 예: `mp4,mov,avi` |
 | `-x` | `--skip-existing` | `flag` | 없음 | 이미 `_speed_time.xlsx` 파일이 있으면 해당 영상은 스킵 |
+| `-w` | `--workers` | `int` | `1` | 동시 처리할 영상 수 (병렬 처리). 기본 1은 순차 실행 |
 | `-o` | `--overlay` | `flag` | 없음 | 인식 결과 오버레이 이미지를 저장 (`classify_sevenseg`에 전달) |
 | `-d` | `--debug` | `flag` | 없음 | 디버그 로그 출력 (`export_speed_to_excel`에 전달) |
 | `-a` | `--all-cols` | `flag` | 없음 | 모든 컬럼 표시 (`export_speed_to_excel`에 전달) |

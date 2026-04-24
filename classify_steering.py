@@ -327,9 +327,13 @@ def analyze_steering_frames(
     out_csv    = work_dir / "_steer_result.csv"
     overlay_dir = work_dir / "_steer_overlay"
 
-    # ── 1단계: 병렬 로딩 ──────────────────────────────────────
-    # 스레드 풀이 paths 순서를 보장하여 imgs[i] == paths[i]
-    imgs = _load_frames_parallel(paths)
+    # ── 1단계: 이미지 로딩 ────────────────────────────────────────
+    # overlay=True: 스레드 풀 병렬 로딩 (I/O 절감 > 풀 초기화 오버헤드)
+    # overlay=False: 순차 로딩  (소형 이미지 환경에서 풀 오버헤드 > I/O 절감)
+    if overlay:
+        imgs = _load_frames_parallel(paths)
+    else:
+        imgs = [_load_one_frame(p) for p in paths]
 
     # ── 2단계: 순서대로 분석 ──────────────────────────────────
     # 분석 자체는 이전 프레임 결과에 의존하지 않으므로
